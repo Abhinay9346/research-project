@@ -3,7 +3,7 @@ import {
   Building2, Database, Activity, Plus, Search, MoreHorizontal, Download, Upload,
   ShieldCheck,
 } from 'lucide-react';
-import { mockDepartments, mockScholars } from '@/lib/mock-data';
+import { useUsers } from '@/lib/hooks';
 import { exportToCSV } from '@/lib/export-utils';
 import { PageHeader, AnimatedCard } from '@/components/common';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,7 +29,7 @@ import { toast } from 'sonner';
 
 const auditLogs = [
   { id: 1, user: 'Admin Office', action: 'Created announcement', target: 'Mid-Seminar Schedule', time: '2 hours ago', type: 'create' },
-  { id: 2, user: 'Dr. Priya Sharma', action: 'Approved weekly log', target: 'Arun Patel - Week 26', time: '5 hours ago', type: 'approve' },
+  { id: 2, user: 'Dr. Priya Sharma', action: 'Approved weekly log', target: 'John Doe - Week 26', time: '5 hours ago', type: 'approve' },
   { id: 3, user: 'Chairman', action: 'Generated report', target: 'Department Analytics Q2', time: '1 day ago', type: 'report' },
   { id: 4, user: 'Admin Office', action: 'Updated user role', target: 'Vikram Singh → Scholar', time: '2 days ago', type: 'update' },
   { id: 5, user: 'Dr. Priya Sharma', action: 'Rejected weekly log', target: 'Vikram Singh - Week 25', time: '3 days ago', type: 'reject' },
@@ -55,16 +55,23 @@ interface ManagedUser {
 export default function AdminPage() {
   const [search, setSearch] = useState('');
   const [addUserOpen, setAddUserOpen] = useState(false);
-  const [users, setUsers] = useState<ManagedUser[]>(
-    mockScholars.map((s) => ({
-      id: s.id,
-      name: s.name,
-      email: s.email,
-      role: 'Scholar',
-      department: s.department,
-      status: s.status,
-    }))
-  );
+  const { users, setUsers } = useUsers();
+
+  // Compute departments from users
+  const departmentsData = [
+    { code: 'CSE', name: 'Computer Science and Engineering', hod: 'Dr. S. K. Singh' },
+    { code: 'ECE', name: 'Electronics and Communication', hod: 'Dr. M. L. Sharma' },
+    { code: 'ME', name: 'Mechanical Engineering', hod: 'Dr. R. K. Verma' },
+    { code: 'EE', name: 'Electrical Engineering', hod: 'Dr. P. N. Rao' },
+    { code: 'CE', name: 'Civil Engineering', hod: 'Dr. K. S. Reddy' },
+    { code: 'CH', name: 'Chemical Engineering', hod: 'Dr. A. B. Ghosh' },
+  ].map(d => {
+    const dUsers = users.filter((u: any) => u.department === d.code);
+    const scholarsCount = dUsers.filter((u: any) => u.role === 'scholar').length;
+    const guidesCount = dUsers.filter((u: any) => u.role === 'guide').length;
+    // We would ideally map publications to scholars to find dept publications, but this is an approximation for admin
+    return { ...d, scholarsCount, guidesCount, publicationsCount: Math.floor(scholarsCount * 1.5) };
+  });
 
   const [editUser, setEditUser] = useState<ManagedUser | null>(null);
 
@@ -129,7 +136,7 @@ export default function AdminPage() {
   };
 
   const handleBackup = () => {
-    const data = { users, departments: mockDepartments, timestamp: new Date().toISOString() };
+    const data = { users, departments: departmentsData, timestamp: new Date().toISOString() };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -184,7 +191,7 @@ export default function AdminPage() {
                     <TableRow key={u.id}>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Avatar className="w-8 h-8"><AvatarFallback className="text-xs bg-primary/10 text-primary">{u.name.split(' ').map((n) => n[0]).join('')}</AvatarFallback></Avatar>
+                          <Avatar className="w-8 h-8"><AvatarFallback className="text-xs bg-primary/10 text-primary">{u.name.split(' ').map((n: string) => n[0]).join('')}</AvatarFallback></Avatar>
                           <span className="font-medium">{u.name}</span>
                         </div>
                       </TableCell>
@@ -212,8 +219,8 @@ export default function AdminPage() {
 
         <TabsContent value="departments">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {mockDepartments.map((d, i) => (
-              <AnimatedCard key={d.id} delay={i * 0.05}>
+            {departmentsData.map((d, i) => (
+              <AnimatedCard key={d.code} delay={i * 0.05}>
                 <Card className="hover:shadow-md transition-shadow">
                   <CardContent className="p-5">
                     <div className="flex items-start justify-between mb-3">

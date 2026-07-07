@@ -9,8 +9,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { useAuth } from '@/lib/auth-context';
-import { useWeeklyLogs, usePublications, useMeetings } from '@/lib/hooks';
-import { mockScholars, departmentComparisonData } from '@/lib/mock-data';
+import { useWeeklyLogs, usePublications, useMeetings, useScholars, useStats } from '@/lib/hooks';
 import { PageHeader, AnimatedCard, StatusBadge } from '@/components/common';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +25,8 @@ export default function DashboardPage() {
   const { logs } = useWeeklyLogs();
   const { publications } = usePublications();
   const { meetings } = useMeetings();
+  const { scholars } = useScholars();
+  const { stats: dashboardStats } = useStats();
 
   const isChairman = user?.role === 'chairman';
   const isGuide = user?.role === 'guide';
@@ -37,19 +38,35 @@ export default function DashboardPage() {
   const recentLogs = useMemo(() => logs.slice(0, 5), [logs]);
 
   // Calculate real stats from data
-  const myLogs = useMemo(() => logs.filter((l) => l.scholarId === 's1'), [logs]);
-  const myPubs = useMemo(() => publications.filter((p) => p.scholarId === 's1'), [publications]);
+  const myLogs = useMemo(() => logs.filter((l) => l.scholarId === user?.scholarId || l.scholarId === user?.id), [logs, user]);
+  const myPubs = useMemo(() => publications.filter((p) => p.scholarId === user?.scholarId || p.scholarId === user?.id), [publications, user]);
   const publishedPubs = publications.filter((p) => p.status === 'published').length;
 
   // Calculate overdue scholars (registered > 4 years ago)
   const overdueScholars = useMemo(() => {
     const now = new Date();
-    return mockScholars.filter((s) => {
+    return scholars.filter((s) => {
       const reg = new Date(s.registrationDate);
       return (now.getTime() - reg.getTime()) / (1000 * 60 * 60 * 24 * 365.25) >= 4;
     });
-  }, []);
+  }, [scholars]);
   const overdueCount = overdueScholars.length;
+
+  const departmentComparisonData = useMemo(() => {
+    const deptStats: Record<string, { scholars: number; publications: number }> = {};
+    scholars.forEach(s => {
+      if (!deptStats[s.department]) deptStats[s.department] = { scholars: 0, publications: 0 };
+      deptStats[s.department].scholars++;
+    });
+    publications.forEach(p => {
+      const s = scholars.find(sc => sc.id === p.scholarId);
+      if (s) {
+        if (!deptStats[s.department]) deptStats[s.department] = { scholars: 0, publications: 0 };
+        deptStats[s.department].publications++;
+      }
+    });
+    return Object.entries(deptStats).map(([dept, data]) => ({ dept, ...data }));
+  }, [scholars, publications]);
 
   // Calculate monthly log activity from real data
   const monthlyLogData = useMemo(() => {
@@ -93,10 +110,10 @@ export default function DashboardPage() {
         { label: 'Upcoming Meetings', value: String(upcomingMeetings.length), icon: CalendarDays, trend: 'This month', trendUp: true, color: 'text-blue-500' },
       ]
     : [
-        { label: 'Total Scholars', value: '242', icon: Users, trend: 'Across 6 depts', trendUp: true, color: 'text-primary' },
-        { label: 'Active Guides', value: '64', icon: Award, trend: '6 departments', trendUp: true, color: 'text-emerald-500' },
-        { label: 'Publications', value: String(publications.length), icon: BookOpen, trend: `${publishedPubs} published`, trendUp: true, color: 'text-amber-500' },
-        { label: 'Pending Approvals', value: String(pendingLogs.length), icon: AlertCircle, trend: pendingLogs.length > 0 ? 'Action needed' : 'All clear', trendUp: pendingLogs.length === 0, color: 'text-red-500' },
+        { label: 'Total Scholars', value: dashboardStats ? String(dashboardStats.totalScholars) : '...', icon: Users, trend: 'Across departments', trendUp: true, color: 'text-primary' },
+        { label: 'Active Guides', value: dashboardStats ? String(dashboardStats.totalGuides) : '...', icon: Award, trend: 'Active guides', trendUp: true, color: 'text-emerald-500' },
+        { label: 'Publications', value: dashboardStats ? String(dashboardStats.totalPublications) : '...', icon: BookOpen, trend: dashboardStats ? `${dashboardStats.publishedPublications} published` : '...', trendUp: true, color: 'text-amber-500' },
+        { label: 'Pending Approvals', value: dashboardStats ? String(dashboardStats.pendingWeeklyLogs) : '...', icon: AlertCircle, trend: (dashboardStats?.pendingWeeklyLogs > 0) ? 'Action needed' : 'All clear', trendUp: (dashboardStats?.pendingWeeklyLogs === 0), color: 'text-red-500' },
       ];
 
   if (!user) return null;
@@ -350,7 +367,7 @@ export default function DashboardPage() {
               <CardContent>
                 <ScrollArea className="h-[260px] pr-4">
                   <div className="space-y-4">
-                    {mockScholars.map((s) => (
+                    {scholars.slice(0, 8).map((s) => (
                       <div key={s.id}>
                         <div className="flex items-center justify-between mb-1.5">
                           <div className="flex items-center gap-2">

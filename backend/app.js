@@ -2,8 +2,12 @@ const express = require('express');
 const cors = require('cors');
 const healthRoutes = require('./routes/healthRoutes');
 const errorHandler = require('./middleware/errorHandler');
+const authMiddleware = require('./middleware/authMiddleware');
 
 const weeklyLogRoutes = require('./routes/weeklyLogRoutes');
+const authRoutes = require('./routes/authRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
+const userRoutes = require('./routes/userRoutes');
 const publicationRoutes = require('./routes/publicationRoutes');
 const committeeMeetingRoutes = require('./routes/committeeMeetingRoutes');
 const announcementRoutes = require('./routes/announcementRoutes');
@@ -17,6 +21,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use('/api', (req, res, next) => {
+  if (req.path.startsWith('/auth')) {
+    return next();
+  }
+  authMiddleware(req, res, next);
+});
 
 // Basic route
 app.get('/', (req, res) => {
@@ -25,6 +35,9 @@ app.get('/', (req, res) => {
 
 // Routes
 app.use('/api', healthRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/weekly-logs', weeklyLogRoutes);
 app.use('/api/publications', publicationRoutes);
 app.use('/api/committee-meetings', committeeMeetingRoutes);

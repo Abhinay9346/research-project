@@ -1,8 +1,10 @@
 const ResearchProject = require('../models/ResearchProject');
+const { buildRoleWhereClause } = require('../utils/roleFilter');
 
 exports.getAll = async (req, res, next) => {
   try {
-    const data = await ResearchProject.findAll();
+    const { whereClause, whereValues } = await buildRoleWhereClause(req.user);
+    const data = await ResearchProject.findAll('created_at DESC', whereClause, whereValues);
     res.status(200).json({ success: true, message: 'Records fetched successfully', data });
   } catch (error) {
     next(error);

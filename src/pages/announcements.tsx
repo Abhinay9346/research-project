@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Megaphone, Plus, AlertCircle, Info, AlertTriangle, Edit, Trash2 } from 'lucide-react';
 import { useAnnouncements } from '@/lib/hooks';
-import { supabase } from '@/lib/supabase';
+import api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { PageHeader, EmptyState, AnimatedCard } from '@/components/common';
 import { Card, CardContent } from '@/components/ui/card';
@@ -47,21 +47,19 @@ export default function AnnouncementsPage() {
     setSubmitting(true);
     try {
       if (editing) {
-        const { error } = await supabase.from('announcements').update({
+        await api.put(`/announcements/${editing.id}`, {
           title: data.title,
           content: data.content,
           priority: data.priority,
-        }).eq('id', editing.id);
-        if (error) throw error;
+        });
         toast.success('Announcement updated.');
       } else {
-        const { error } = await supabase.from('announcements').insert({
+        await api.post('/announcements', {
           title: data.title,
           content: data.content,
           priority: data.priority,
           author: user?.name || 'Admin',
         });
-        if (error) throw error;
         toast.success('Announcement published.');
       }
       setDialogOpen(false);
@@ -77,8 +75,7 @@ export default function AnnouncementsPage() {
     if (!deleteTarget) return;
     setSubmitting(true);
     try {
-      const { error } = await supabase.from('announcements').delete().eq('id', deleteTarget.id);
-      if (error) throw error;
+      await api.delete(`/announcements/${deleteTarget.id}`);
       toast.success('Announcement deleted.');
       setDeleteTarget(null);
       refetch();

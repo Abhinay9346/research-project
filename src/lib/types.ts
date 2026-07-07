@@ -7,6 +7,9 @@ export interface User {
   role: Role;
   department?: string;
   avatarUrl?: string;
+  scholarId?: string;
+  guideName?: string;
+  researchDomain?: string;
 }
 
 export interface Scholar {

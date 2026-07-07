@@ -6,38 +6,9 @@ import type {
   Department,
   Announcement,
   Notification,
-  User,
 } from './types';
 
-export const mockUsers: Record<string, User> = {
-  chairman: {
-    id: 'u1',
-    name: 'Prof. Rajesh Kumar',
-    email: 'chairman@iit.edu',
-    role: 'chairman',
-    department: 'Computer Science & Engineering',
-  },
-  guide: {
-    id: 'u2',
-    name: 'Dr. Priya Sharma',
-    email: 'guide@iit.edu',
-    role: 'guide',
-    department: 'Computer Science & Engineering',
-  },
-  scholar: {
-    id: 'u3',
-    name: 'Arun Patel',
-    email: 'scholar@iit.edu',
-    role: 'scholar',
-    department: 'Computer Science & Engineering',
-  },
-  admin: {
-    id: 'u4',
-    name: 'Admin Office',
-    email: 'admin@iit.edu',
-    role: 'admin',
-  },
-};
+
 
 export const mockDepartments: Department[] = [
   { id: 'd1', name: 'Computer Science & Engineering', code: 'CSE', scholarsCount: 48, guidesCount: 12, publicationsCount: 156, hod: 'Prof. Rajesh Kumar' },

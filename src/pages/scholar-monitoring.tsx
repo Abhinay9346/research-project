@@ -4,8 +4,7 @@ import {
   Search, Filter, Download, Printer, Users, AlertTriangle,
   Clock, TrendingUp, Building2, ChevronUp, ChevronDown, Eye,
 } from 'lucide-react';
-import { mockScholars, mockDepartments } from '@/lib/mock-data';
-import { useWeeklyLogs, usePublications, useMeetings } from '@/lib/hooks';
+import { useWeeklyLogs, usePublications, useMeetings, useScholars } from '@/lib/hooks';
 import { useResearchProjects, useGuideExplanations, useChairmanReviews } from '@/lib/monitoring-hooks';
 import { exportToCSV } from '@/lib/export-utils';
 import { PageHeader, StatusBadge, AnimatedCard } from '@/components/common';
@@ -47,6 +46,7 @@ export default function ScholarMonitoringPage() {
   const { projects } = useResearchProjects();
   const { explanations } = useGuideExplanations();
   const { reviews } = useChairmanReviews();
+  const { scholars } = useScholars();
 
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('all');
@@ -59,7 +59,7 @@ export default function ScholarMonitoringPage() {
 
   // Build enriched scholar data with computed fields
   const enrichedScholars = useMemo(() => {
-    return mockScholars.map((s) => {
+    return scholars.map((s) => {
       const years = yearsSince(s.registrationDate);
       const isOverdue = years >= 4;
       const scholarLogs = logs.filter((l) => l.scholarId === s.id);
@@ -82,11 +82,11 @@ export default function ScholarMonitoringPage() {
         hasResearchProject,
       };
     });
-  }, [logs, publications, meetings, explanations, reviews, projects]);
+  }, [scholars, logs, publications, meetings, explanations, reviews, projects]);
 
   // Get unique guides and departments for filter dropdowns
-  const guides = useMemo(() => [...new Set(mockScholars.map((s) => s.guideName))], []);
-  const departments = useMemo(() => mockDepartments.map((d) => d.code), []);
+  const guides = useMemo(() => Array.from(new Set(scholars.map((s: any) => s.guideName as string))), [scholars]);
+  const departments = useMemo(() => Array.from(new Set(scholars.map((s: any) => s.department as string))), [scholars]);
 
   // Apply filters
   const filtered = useMemo(() => {
@@ -263,14 +263,14 @@ export default function ScholarMonitoringPage() {
               <SelectTrigger className="w-full lg:w-40"><Filter className="w-4 h-4 mr-2" /><SelectValue placeholder="Department" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Departments</SelectItem>
-                {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                {departments.map((d: string) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={guideFilter} onValueChange={setGuideFilter}>
               <SelectTrigger className="w-full lg:w-44"><Filter className="w-4 h-4 mr-2" /><SelectValue placeholder="Guide" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Guides</SelectItem>
-                {guides.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                {guides.map((g: string) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -324,7 +324,7 @@ export default function ScholarMonitoringPage() {
                     </TableCell>
                   </TableRow>
                 )}
-                {filtered.map((s) => (
+                {filtered.map((s: any) => (
                   <TableRow
                     key={s.id}
                     className={cn(s.isOverdue && 'bg-red-500/5 hover:bg-red-500/10')}

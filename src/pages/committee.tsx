@@ -3,7 +3,8 @@ import {
   CalendarDays, Plus, Clock, Users, FileText, CheckCircle2, Trash2, XCircle,
 } from 'lucide-react';
 import { useMeetings } from '@/lib/hooks';
-import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/auth-context';
+import api from '@/lib/api';
 import { exportToCSV } from '@/lib/export-utils';
 import { PageHeader, StatusBadge, EmptyState, AnimatedCard } from '@/components/common';
 import { Card, CardContent } from '@/components/ui/card';
@@ -24,6 +25,7 @@ import { toast } from 'sonner';
 import type { CommitteeMeeting } from '@/lib/types';
 
 export default function CommitteePage() {
+  const { user } = useAuth();
   const { meetings, loading, refetch } = useMeetings();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [minutesDialog, setMinutesDialog] = useState<CommitteeMeeting | null>(null);
@@ -40,9 +42,9 @@ export default function CommitteePage() {
     }
     setSubmitting(true);
     try {
-      const { error } = await supabase.from('committee_meetings').insert({
-        scholar_id: 's1',
-        scholar_name: data.scholarName || 'Arun Patel',
+      await api.post('/committee-meetings', {
+        scholar_id: user?.scholarId || 'unknown',
+        scholar_name: data.scholarName || user?.name || 'Unknown Scholar',
         title: data.title,
         meeting_date: data.date,
         meeting_time: data.time,
@@ -50,7 +52,6 @@ export default function CommitteePage() {
         agenda: data.agenda,
         attendees: ['Dr. Priya Sharma', 'Prof. Rajesh Kumar', 'Dr. A. Verma', 'Dr. S. Nair'],
       });
-      if (error) throw error;
       toast.success('Meeting scheduled successfully.');
       setDialogOpen(false);
       refetch();
@@ -62,8 +63,7 @@ export default function CommitteePage() {
 
   const handleCancel = async (m: CommitteeMeeting) => {
     try {
-      const { error } = await supabase.from('committee_meetings').update({ status: 'cancelled' }).eq('id', m.id);
-      if (error) throw error;
+      await api.put(`/committee-meetings/${m.id}`, { status: 'cancelled' });
       toast.success('Meeting cancelled.');
       refetch();
     } catch (err) {
@@ -74,12 +74,11 @@ export default function CommitteePage() {
   const handleComplete = async (m: CommitteeMeeting, minutes: string, recommendations: string) => {
     setSubmitting(true);
     try {
-      const { error } = await supabase.from('committee_meetings').update({
+      await api.put(`/committee-meetings/${m.id}`, {
         status: 'completed',
         minutes,
         recommendations,
-      }).eq('id', m.id);
-      if (error) throw error;
+      });
       toast.success('Meeting marked as completed with minutes.');
       setMinutesDialog(null);
       refetch();
@@ -93,8 +92,7 @@ export default function CommitteePage() {
     if (!deleteTarget) return;
     setSubmitting(true);
     try {
-      const { error } = await supabase.from('committee_meetings').delete().eq('id', deleteTarget.id);
-      if (error) throw error;
+      await api.delete(`/committee-meetings/${deleteTarget.id}`);
       toast.success('Meeting deleted.');
       setDeleteTarget(null);
       refetch();
@@ -265,6 +263,7 @@ function ScheduleDialog({
   onSubmit: (data: { title: string; date: string; time: string; agenda: string; scholarName: string }) => void;
   submitting: boolean;
 }) {
+  const { user } = useAuth();
   const [title, setTitle] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('10:00');
@@ -282,7 +281,7 @@ function ScheduleDialog({
       toast.error('Please fill all required fields.');
       return;
     }
-    onSubmit({ title, date, time, agenda, scholarName: scholarName || 'Arun Patel' });
+    onSubmit({ title, date, time, agenda, scholarName: scholarName || user?.name || 'Unknown Scholar' });
   };
 
   return (

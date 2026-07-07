@@ -7,8 +7,7 @@ import {
   PolarAngleAxis, PolarRadiusAxis, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
-import { useWeeklyLogs, usePublications } from '@/lib/hooks';
-import { mockScholars, departmentComparisonData } from '@/lib/mock-data';
+import { useWeeklyLogs, usePublications, useScholars } from '@/lib/hooks';
 import { PageHeader, AnimatedCard } from '@/components/common';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -32,8 +31,25 @@ const radarData = [
 export default function AnalyticsPage() {
   const { logs } = useWeeklyLogs();
   const { publications } = usePublications();
+  const { scholars } = useScholars();
 
   const publishedPubs = publications.filter((p) => p.status === 'published').length;
+
+  const departmentComparisonData = useMemo(() => {
+    const deptStats: Record<string, { scholars: number; publications: number }> = {};
+    scholars.forEach(s => {
+      if (!deptStats[s.department]) deptStats[s.department] = { scholars: 0, publications: 0 };
+      deptStats[s.department].scholars++;
+    });
+    publications.forEach(p => {
+      const s = scholars.find(sc => sc.id === p.scholarId);
+      if (s) {
+        if (!deptStats[s.department]) deptStats[s.department] = { scholars: 0, publications: 0 };
+        deptStats[s.department].publications++;
+      }
+    });
+    return Object.entries(deptStats).map(([dept, data]) => ({ dept, ...data }));
+  }, [scholars, publications]);
 
   // Calculate monthly log data from real data
   const monthlyLogData = useMemo(() => {
@@ -64,7 +80,7 @@ export default function AnalyticsPage() {
       .map(([year, val]) => ({ year, ...val }));
   }, [publications]);
 
-  const topScholars = [...mockScholars].sort((a, b) => b.publicationsCount - a.publicationsCount);
+  const topScholars = [...scholars].sort((a, b) => (b.publicationsCount || 0) - (a.publicationsCount || 0)).slice(0, 5);
 
   return (
     <div>

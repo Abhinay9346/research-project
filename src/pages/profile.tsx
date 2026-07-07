@@ -3,7 +3,7 @@ import {
   User, Mail, Award, Calendar, BookOpen, FileText, TrendingUp,
   Upload, Download, GraduationCap, MapPin, Phone,
 } from 'lucide-react';
-import { mockScholars } from '@/lib/mock-data';
+import { useScholars } from '@/lib/hooks';
 import { useAuth } from '@/lib/auth-context';
 import { PageHeader, StatusBadge, AnimatedCard } from '@/components/common';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,8 +19,9 @@ export default function ProfilePage() {
 
   if (!user) return null;
 
-  // Find the scholar record matching the logged-in user (by email), fall back to first mock scholar
-  const scholar = mockScholars.find((s) => s.email === user.email) || mockScholars[0];
+  const { scholars } = useScholars();
+  // Find the scholar record matching the logged-in user (by email), fall back to first scholar
+  const scholar = scholars.find((s) => s.email === user.email) || scholars[0] || {} as any;
   const isScholar = user.role === 'scholar';
   const displayName = user.name;
   const initials = displayName.split(' ').map((n) => n[0]).join('').slice(0, 2);
@@ -40,7 +41,7 @@ export default function ProfilePage() {
   };
 
   const handleDownloadResume = () => {
-    const resumeContent = `CURRICULUM VITAE\n\nName: ${displayName}\nEmail: ${user.email}\nDepartment: ${user.department || 'N/A'}\nResearch Area: ${scholar.researchArea}\nGuide: ${scholar.guideName}\nRegistration Date: ${scholar.registrationDate}\nProgress: ${scholar.progress}%\nPublications: ${scholar.publicationsCount}\nWeekly Logs: ${scholar.weeklyLogsCount}\n\nAchievements:\n${scholar.achievements.map((a) => `- ${a}`).join('\n')}\n`;
+    const resumeContent = `CURRICULUM VITAE\n\nName: ${displayName}\nEmail: ${user.email}\nDepartment: ${user.department || 'N/A'}\nResearch Area: ${scholar.researchArea || 'N/A'}\nGuide: ${scholar.guideName || 'N/A'}\nRegistration Date: ${scholar.registrationDate || 'N/A'}\nProgress: ${scholar.progress || 0}%\nPublications: ${scholar.publicationsCount || 0}\nWeekly Logs: ${scholar.weeklyLogsCount || 0}\n\nAchievements:\n${(scholar.achievements || []).map((a: string) => `- ${a}`).join('\n')}\n`;
     const blob = new Blob([resumeContent], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -136,7 +137,7 @@ export default function ProfilePage() {
 
                   <h4 className="font-semibold text-sm mb-3">Milestones Timeline</h4>
                   <div className="space-y-3">
-                    {scholar.milestones.map((m, i) => (
+                    {(scholar.milestones || []).map((m: any, i: number) => (
                       <div key={m.id} className="flex gap-3">
                         <div className="flex flex-col items-center">
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
@@ -146,7 +147,7 @@ export default function ProfilePage() {
                           }`}>
                             {m.status === 'completed' ? '\u2713' : i + 1}
                           </div>
-                          {i < scholar.milestones.length - 1 && (
+                          {i < (scholar.milestones?.length || 0) - 1 && (
                             <div className={`w-0.5 h-8 ${m.status === 'completed' ? 'bg-emerald-500' : 'bg-border'}`} />
                           )}
                         </div>
@@ -179,10 +180,10 @@ export default function ProfilePage() {
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
             {[
-              { label: 'Weekly Logs', value: scholar.weeklyLogsCount, icon: FileText, color: 'text-primary' },
-              { label: 'Publications', value: scholar.publicationsCount, icon: BookOpen, color: 'text-emerald-500' },
-              { label: 'Progress', value: `${scholar.progress}%`, icon: TrendingUp, color: 'text-blue-500' },
-              { label: 'Achievements', value: scholar.achievements.length, icon: Award, color: 'text-amber-500' },
+              { label: 'Weekly Logs', value: scholar.weeklyLogsCount || 0, icon: FileText, color: 'text-primary' },
+              { label: 'Publications', value: scholar.publicationsCount || 0, icon: BookOpen, color: 'text-emerald-500' },
+              { label: 'Progress', value: `${scholar.progress || 0}%`, icon: TrendingUp, color: 'text-blue-500' },
+              { label: 'Achievements', value: (scholar.achievements || []).length, icon: Award, color: 'text-amber-500' },
             ].map((s, i) => {
               const Icon = s.icon;
               return (
@@ -211,7 +212,7 @@ export default function ProfilePage() {
               <CardHeader><CardTitle className="text-base">Achievements & Awards</CardTitle></CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-3">
-                  {scholar.achievements.map((a, i) => (
+                  {(scholar.achievements || []).map((a: string, i: number) => (
                     <div key={i} className="flex items-center gap-2 rounded-lg border border-border p-3 bg-amber-500/5">
                       <Award className="w-5 h-5 text-amber-500" />
                       <span className="text-sm font-medium">{a}</span>

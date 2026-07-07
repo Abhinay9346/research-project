@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from './supabase';
+import api from './api';
 import type { ResearchProject, GuideExplanation, ChairmanReview } from './types';
 
 interface RawResearchProject {
@@ -95,9 +95,9 @@ export function useResearchProjects() {
   const fetchProjects = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.from('research_projects').select('*');
-      if (!error && data) {
-        setProjects((data as unknown as RawResearchProject[]).map(mapProject));
+      const response: any = await api.get('/research-projects');
+      if (response?.success && response?.data) {
+        setProjects((response.data as RawResearchProject[]).map(mapProject));
       }
     } catch { /* ignore */ }
     setLoading(false);
@@ -114,9 +114,9 @@ export function useGuideExplanations() {
   const fetchExplanations = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.from('guide_explanations').select('*');
-      if (!error && data) {
-        setExplanations((data as unknown as RawGuideExplanation[]).map(mapExplanation));
+      const response: any = await api.get('/guide-explanations');
+      if (response?.success && response?.data) {
+        setExplanations((response.data as RawGuideExplanation[]).map(mapExplanation));
       }
     } catch { /* ignore */ }
     setLoading(false);
@@ -133,9 +133,9 @@ export function useChairmanReviews() {
   const fetchReviews = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.from('chairman_reviews').select('*').order('updated_at', { ascending: false });
-      if (!error && data) {
-        setReviews((data as unknown as RawChairmanReview[]).map(mapReview));
+      const response: any = await api.get('/chairman-reviews');
+      if (response?.success && response?.data) {
+        setReviews((response.data as RawChairmanReview[]).map(mapReview));
       }
     } catch { /* ignore */ }
     setLoading(false);

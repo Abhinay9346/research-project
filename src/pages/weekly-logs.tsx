@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useWeeklyLogs } from '@/lib/hooks';
-import { supabase } from '@/lib/supabase';
+import api from '@/lib/api';
 import { exportToCSV } from '@/lib/export-utils';
 import type { WeeklyLog } from '@/lib/types';
 import { PageHeader, StatusBadge, EmptyState, AnimatedCard } from '@/components/common';
@@ -45,7 +45,6 @@ export default function WeeklyLogsPage() {
 
   const filtered = useMemo(() => {
     let result = logs;
-    if (isScholar) result = result.filter((l) => l.scholarId === 's1');
     if (tab === 'pending') result = result.filter((l) => l.approvalStatus === 'pending');
     if (tab === 'approved') result = result.filter((l) => l.approvalStatus === 'approved');
     if (tab === 'revision') result = result.filter((l) => l.approvalStatus === 'revision');
@@ -57,7 +56,7 @@ export default function WeeklyLogsPage() {
       );
     }
     return result;
-  }, [logs, tab, statusFilter, search, isScholar]);
+  }, [logs, tab, statusFilter, search]);
 
   const handleSave = async (data: Partial<WeeklyLog>) => {
     if (!data.researchWork?.trim()) {
@@ -71,9 +70,7 @@ export default function WeeklyLogsPage() {
     setSubmitting(true);
     try {
       if (editing) {
-        const { error } = await supabase
-          .from('weekly_logs')
-          .update({
+        await api.put(`/weekly-logs/${editing.id}`, {
             week_date: data.weekDate,
             research_work: data.researchWork,
             hours_worked: data.hoursWorked,
@@ -82,15 +79,13 @@ export default function WeeklyLogsPage() {
             approval_status: 'pending',
             guide_comment: null,
             reviewed_at: null,
-          })
-          .eq('id', editing.id);
-        if (error) throw error;
+        });
         toast.success('Weekly log updated and resubmitted.');
       } else {
-        const { error } = await supabase.from('weekly_logs').insert({
-          scholar_id: 's1',
+        await api.post('/weekly-logs', {
+          scholar_id: user?.scholarId || 'unknown',
           scholar_name: user?.name || 'Scholar',
-          guide_id: 'u2',
+          guide_id: user?.guideName || 'unknown',
           week_date: data.weekDate,
           research_work: data.researchWork,
           hours_worked: data.hoursWorked || 0,
@@ -98,7 +93,6 @@ export default function WeeklyLogsPage() {
           future_plan: data.futurePlan || '',
           approval_status: 'pending',
         });
-        if (error) throw error;
         toast.success('Weekly log submitted successfully.');
       }
       setDialogOpen(false);
@@ -113,15 +107,11 @@ export default function WeeklyLogsPage() {
   const handleReview = async (id: string, status: 'approved' | 'rejected' | 'revision', comment: string) => {
     setSubmitting(true);
     try {
-      const { error } = await supabase
-        .from('weekly_logs')
-        .update({
+      await api.put(`/weekly-logs/${id}`, {
           approval_status: status,
           guide_comment: comment,
           reviewed_at: new Date().toISOString(),
-        })
-        .eq('id', id);
-      if (error) throw error;
+      });
       toast.success(`Log ${status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : 'sent for revision'}.`);
       setReviewDialog(null);
       refetch();
@@ -135,8 +125,7 @@ export default function WeeklyLogsPage() {
     if (!deleteTarget) return;
     setSubmitting(true);
     try {
-      const { error } = await supabase.from('weekly_logs').delete().eq('id', deleteTarget.id);
-      if (error) throw error;
+      await api.delete(`/weekly-logs/${deleteTarget.id}`);
       toast.success('Weekly log deleted.');
       setDeleteTarget(null);
       refetch();

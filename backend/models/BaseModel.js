@@ -42,9 +42,10 @@ class BaseModel {
     return filtered;
   }
 
-  async findAll(orderBy = 'created_at DESC') {
+  async findAll(orderBy = 'created_at DESC', whereClause = '', whereValues = []) {
     try {
-      const [rows] = await db.query(`SELECT * FROM ${this.tableName} ORDER BY ${orderBy}`);
+      const query = `SELECT * FROM ${this.tableName} ${whereClause ? 'WHERE ' + whereClause : ''} ORDER BY ${orderBy}`;
+      const [rows] = await db.query(query, whereValues);
       return rows.map(row => this._parseRow(row));
     } catch (error) {
       throw new Error(`Error fetching all from ${this.tableName}: ${error.message}`);

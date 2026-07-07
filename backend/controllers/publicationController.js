@@ -1,8 +1,10 @@
 const Publication = require('../models/Publication');
+const { buildRoleWhereClause } = require('../utils/roleFilter');
 
 exports.getAll = async (req, res, next) => {
   try {
-    const data = await Publication.findAll();
+    const { whereClause, whereValues } = await buildRoleWhereClause(req.user);
+    const data = await Publication.findAll('created_at DESC', whereClause, whereValues);
     res.status(200).json({ success: true, message: 'Records fetched successfully', data });
   } catch (error) {
     next(error);

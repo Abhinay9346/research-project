@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { usePublications } from '@/lib/hooks';
-import { supabase } from '@/lib/supabase';
+import api from '@/lib/api';
 import { exportToCSV } from '@/lib/export-utils';
 import type { Publication } from '@/lib/types';
 import { PageHeader, StatusBadge, EmptyState, AnimatedCard } from '@/components/common';
@@ -45,7 +45,6 @@ export default function PublicationsPage() {
 
   const filtered = useMemo(() => {
     let result = publications;
-    if (isScholar) result = result.filter((p) => p.scholarId === 's1');
     if (statusFilter !== 'all') result = result.filter((p) => p.status === statusFilter);
     if (search) {
       const q = search.toLowerCase();
@@ -54,7 +53,7 @@ export default function PublicationsPage() {
       );
     }
     return result;
-  }, [publications, statusFilter, search, isScholar]);
+  }, [publications, statusFilter, search]);
 
   const handleSave = async (data: Partial<Publication>) => {
     if (!data.title?.trim() || !data.journal?.trim()) {
@@ -64,7 +63,7 @@ export default function PublicationsPage() {
     setSubmitting(true);
     try {
       if (editing) {
-        const { error } = await supabase.from('publications').update({
+        await api.put(`/publications/${editing.id}`, {
           title: data.title,
           doi: data.doi || '',
           journal: data.journal,
@@ -75,13 +74,12 @@ export default function PublicationsPage() {
           journal_link: data.journalLink || '',
           status: data.status || 'draft',
           published_date: data.publishedDate || null,
-        }).eq('id', editing.id);
-        if (error) throw error;
+        });
         toast.success('Publication updated successfully.');
       } else {
-        const { error } = await supabase.from('publications').insert({
-          scholar_id: 's1',
-          scholar_name: user?.name || 'Scholar',
+        await api.post('/publications', {
+          scholar_id: user?.scholarId || 'unknown',
+          scholar_name: user?.name || 'Unknown',
           title: data.title,
           doi: data.doi || '',
           journal: data.journal,
@@ -93,7 +91,6 @@ export default function PublicationsPage() {
           status: data.status || 'draft',
           verified: false,
         });
-        if (error) throw error;
         toast.success('Publication added successfully.');
       }
       setDialogOpen(false);
@@ -107,8 +104,7 @@ export default function PublicationsPage() {
 
   const handleVerify = async (pub: Publication) => {
     try {
-      const { error } = await supabase.from('publications').update({ verified: !pub.verified }).eq('id', pub.id);
-      if (error) throw error;
+      await api.put(`/publications/${pub.id}`, { verified: !pub.verified });
       toast.success(pub.verified ? 'Publication unverified.' : 'Publication verified.');
       refetch();
     } catch (err) {
@@ -120,8 +116,7 @@ export default function PublicationsPage() {
     if (!deleteTarget) return;
     setSubmitting(true);
     try {
-      const { error } = await supabase.from('publications').delete().eq('id', deleteTarget.id);
-      if (error) throw error;
+      await api.delete(`/publications/${deleteTarget.id}`);
       toast.success('Publication deleted.');
       setDeleteTarget(null);
       refetch();

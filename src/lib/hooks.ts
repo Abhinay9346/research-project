@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from './supabase';
-import type { WeeklyLog, Publication, CommitteeMeeting, Announcement } from './types';
+import api from './api';
+import type { WeeklyLog, Publication, CommitteeMeeting, Announcement, Scholar } from './types';
 
 interface RawWeeklyLog {
   id: string;
@@ -129,12 +129,9 @@ export function useWeeklyLogs() {
   const fetchLogs = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('weekly_logs')
-        .select('*')
-        .order('week_date', { ascending: false });
-      if (!error && data) {
-        setLogs((data as unknown as RawWeeklyLog[]).map(mapLog));
+      const response: any = await api.get('/weekly-logs');
+      if (response?.success && response?.data) {
+        setLogs((response.data as RawWeeklyLog[]).map(mapLog));
       }
     } catch { /* ignore */ }
     setLoading(false);
@@ -154,12 +151,9 @@ export function usePublications() {
   const fetchPublications = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('publications')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (!error && data) {
-        setPublications((data as unknown as RawPublication[]).map(mapPub));
+      const response: any = await api.get('/publications');
+      if (response?.success && response?.data) {
+        setPublications((response.data as RawPublication[]).map(mapPub));
       }
     } catch { /* ignore */ }
     setLoading(false);
@@ -179,12 +173,9 @@ export function useMeetings() {
   const fetchMeetings = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('committee_meetings')
-        .select('*')
-        .order('meeting_date', { ascending: true });
-      if (!error && data) {
-        setMeetings((data as unknown as RawMeeting[]).map(mapMeeting));
+      const response: any = await api.get('/committee-meetings');
+      if (response?.success && response?.data) {
+        setMeetings((response.data as RawMeeting[]).map(mapMeeting));
       }
     } catch { /* ignore */ }
     setLoading(false);
@@ -204,12 +195,9 @@ export function useAnnouncements() {
   const fetchAnnouncements = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('announcements')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (!error && data) {
-        setAnnouncements((data as unknown as RawAnnouncement[]).map(mapAnnouncement));
+      const response: any = await api.get('/announcements');
+      if (response?.success && response?.data) {
+        setAnnouncements((response.data as RawAnnouncement[]).map(mapAnnouncement));
       }
     } catch { /* ignore */ }
     setLoading(false);
@@ -220,4 +208,87 @@ export function useAnnouncements() {
   }, [fetchAnnouncements]);
 
   return { announcements, loading, refetch: fetchAnnouncements };
+}
+
+export function useStats() {
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchStats = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response: any = await api.get('/dashboard/stats');
+      if (response?.success && response?.data) {
+        setStats(response.data);
+      }
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
+  return { stats, loading, refetch: fetchStats };
+}
+
+export function useUsers() {
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response: any = await api.get('/users');
+      if (response?.success && response?.data) {
+        setUsers(response.data.map((r: any) => ({
+          id: r.id,
+          name: r.full_name,
+          email: r.email,
+          role: r.role,
+          department: r.department,
+          status: 'active',
+        })));
+      }
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  return { users, setUsers, loading, refetch: fetchUsers };
+}
+
+export function useScholars() {
+  const [scholars, setScholars] = useState<Scholar[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchScholars = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response: any = await api.get('/users');
+      if (response?.success && response?.data) {
+        setScholars(response.data.filter((r: any) => r.role === 'scholar').map((r: any) => ({
+          id: r.scholar_id || r.id,
+          name: r.full_name,
+          email: r.email,
+          department: r.department,
+          guideName: r.guide_name,
+          researchArea: r.research_domain,
+          registrationDate: r.created_at || '2023-01-01',
+          progress: 50,
+          status: 'active'
+        })));
+      }
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchScholars();
+  }, [fetchScholars]);
+
+  return { scholars, loading, refetch: fetchScholars };
 }

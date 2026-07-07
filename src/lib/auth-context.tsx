@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import type { Role, User } from './types';
-import { mockUsers } from './mock-data';
+import api from '@/lib/api';
 
 interface AuthContextValue {
   user: User | null;
@@ -29,16 +29,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   }, []);
 
-  const login = async (email: string, _password: string, role: Role): Promise<boolean> => {
-    await new Promise((r) => setTimeout(r, 600));
-    const mockUser = mockUsers[role];
-    if (mockUser) {
-      const loggedIn = { ...mockUser, email: email || mockUser.email };
-      setUser(loggedIn);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(loggedIn));
-      return true;
+  const login = async (email: string, _password: string, _role: Role): Promise<boolean> => {
+    try {
+      const response: any = await api.post('/auth/login', { email, password: _password });
+      if (response?.success && response?.user) {
+        const loggedIn = {
+          id: response.user.id,
+          name: response.user.full_name,
+          email: response.user.email,
+          role: response.user.role as Role,
+          department: response.user.department || '',
+          scholarId: response.user.scholar_id,
+          guideName: response.user.guide_name,
+          researchDomain: response.user.research_domain,
+        };
+        setUser(loggedIn);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(loggedIn));
+        return true;
+      }
+      return false;
+    } catch (error) {
+      return false;
     }
-    return false;
   };
 
   const logout = () => {

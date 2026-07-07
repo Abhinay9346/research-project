@@ -9,7 +9,7 @@ import {
 import { useAuth } from '@/lib/auth-context';
 import { useWeeklyLogs, usePublications, useMeetings } from '@/lib/hooks';
 import { useResearchProjects, useGuideExplanations, useChairmanReviews } from '@/lib/monitoring-hooks';
-import { supabase } from '@/lib/supabase';
+import api from '@/lib/api';
 import { StatusBadge } from '@/components/common';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -203,11 +203,9 @@ export function ScholarMonitoringDrawer({
         updated_at: new Date().toISOString(),
       };
       if (scholarExplanation) {
-        const { error } = await supabase.from('guide_explanations').update(payload).eq('id', scholarExplanation.id);
-        if (error) throw error;
+        await api.put(`/guide-explanations/${scholarExplanation.id}`, payload);
       } else {
-        const { error } = await supabase.from('guide_explanations').insert(payload);
-        if (error) throw error;
+        await api.post('/guide-explanations', payload);
       }
       toast.success('Guide explanation saved successfully.');
       refetchExplanations();
@@ -240,11 +238,9 @@ export function ScholarMonitoringDrawer({
         updated_at: new Date().toISOString(),
       };
       if (scholarReviews.length > 0) {
-        const { error } = await supabase.from('chairman_reviews').update(payload).eq('id', scholarReviews[0].id);
-        if (error) throw error;
+        await api.put(`/chairman-reviews/${scholarReviews[0].id}`, payload);
       } else {
-        const { error } = await supabase.from('chairman_reviews').insert(payload);
-        if (error) throw error;
+        await api.post('/chairman-reviews', payload);
       }
       toast.success('Chairman review saved successfully.');
       refetchReviews();
@@ -274,11 +270,9 @@ export function ScholarMonitoringDrawer({
         updated_at: new Date().toISOString(),
       };
       if (scholarProject) {
-        const { error } = await supabase.from('research_projects').update(payload).eq('id', scholarProject.id);
-        if (error) throw error;
+        await api.put(`/research-projects/${scholarProject.id}`, payload);
       } else {
-        const { error } = await supabase.from('research_projects').insert(payload);
-        if (error) throw error;
+        await api.post('/research-projects', payload);
       }
       toast.success('Research project saved successfully.');
       refetchProjects();

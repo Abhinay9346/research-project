@@ -208,15 +208,7 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="mt-6 p-4 rounded-lg bg-muted/50 border border-border">
-            <p className="text-xs text-muted-foreground mb-2 font-medium">Demo Credentials (any password works):</p>
-            <div className="space-y-1 text-xs text-muted-foreground">
-              <p>Chairman: chairman@iit.edu</p>
-              <p>Guide: guide@iit.edu</p>
-              <p>Scholar: scholar@iit.edu</p>
-              <p>Admin: admin@iit.edu</p>
-            </div>
-          </div>
+          
         </motion.div>
       </div>
     </div>

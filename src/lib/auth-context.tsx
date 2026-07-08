@@ -40,6 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: response.user.role as Role,
           department: response.user.department || '',
           scholarId: response.user.scholar_id,
+          guideId: response.user.guide_id,
           guideName: response.user.guide_name,
           researchDomain: response.user.research_domain,
         };

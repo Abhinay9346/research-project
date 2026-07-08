@@ -1,62 +1,101 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { Notification } from './types';
+import api from './api';
 
-const STORAGE_KEY = 'rsms_notifications';
-
-const defaultNotifications: Notification[] = [
-  { id: 'n1', type: 'log', title: 'Weekly Log Pending Review', message: 'A new weekly log has been submitted and awaits your review.', date: new Date().toISOString().split('T')[0], read: false },
-  { id: 'n2', type: 'meeting', title: 'Committee Meeting Reminder', message: 'A committee meeting is scheduled soon. Check the Committee page for details.', date: new Date().toISOString().split('T')[0], read: false },
-  { id: 'n3', type: 'publication', title: 'Publication Verification', message: 'A publication has been verified by the research office.', date: new Date(Date.now() - 86400000).toISOString().split('T')[0], read: true },
-  { id: 'n4', type: 'deadline', title: 'Thesis Submission Deadline', message: 'A thesis submission deadline is approaching within 30 days.', date: new Date(Date.now() - 172800000).toISOString().split('T')[0], read: true },
-];
+export interface Notification {
+  id: string;
+  recipient_user_id: string;
+  title: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  module: string | null;
+  record_id: string | null;
+  is_read: boolean | number;
+  created_at: string;
+  read?: boolean; // mapped field
+  date?: string;  // mapped field
+}
 
 export function useNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        setNotifications(JSON.parse(stored));
-      } catch {
-        setNotifications(defaultNotifications);
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const response = await api.get('/notifications');
+      if (response.data?.success) {
+        const data = response.data.data.map((n: any) => ({
+          ...n,
+          read: n.is_read === 1 || n.is_read === true,
+          date: n.created_at ? new Date(n.created_at).toLocaleDateString() : '',
+        }));
+        setNotifications(data);
+        setUnreadCount(data.filter((n: Notification) => !n.read).length);
       }
-    } else {
-      setNotifications(defaultNotifications);
+    } catch (error) {
+      console.error('Failed to fetch notifications', error);
     }
   }, []);
 
-  const markAsRead = useCallback((id: string) => {
-    setNotifications((prev) => {
-      const updated = prev.map((n) => (n.id === id ? { ...n, read: true } : n));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      return updated;
-    });
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000); // Polling every 30s
+    return () => clearInterval(interval);
+  }, [fetchNotifications]);
+
+  const markAsRead = useCallback(async (id: string) => {
+    try {
+      const response = await api.put(`/notifications/${id}/read`);
+      if (response.data?.success) {
+        setNotifications((prev) => 
+          prev.map((n) => n.id === id ? { ...n, is_read: true, read: true } : n)
+        );
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      }
+    } catch (error) {
+      console.error('Failed to mark notification as read', error);
+    }
   }, []);
 
-  const markAllAsRead = useCallback(() => {
-    setNotifications((prev) => {
-      const updated = prev.map((n) => ({ ...n, read: true }));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      return updated;
-    });
+  const markAllAsRead = useCallback(async () => {
+    // We can iterate and mark all as read or add a bulk endpoint, 
+    // but the backend only has /notifications/:id/read. 
+    // We will do it locally and dispatch the promises, but no backend bulk endpoint exists right now.
+    const unread = notifications.filter(n => !n.read);
+    for (const n of unread) {
+      api.put(`/notifications/${n.id}/read`).catch(() => {});
+    }
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true, read: true })));
+    setUnreadCount(0);
+  }, [notifications]);
+
+  const deleteNotification = useCallback(async (id: string) => {
+    try {
+      const response = await api.delete(`/notifications/${id}`);
+      if (response.data?.success) {
+        setNotifications((prev) => {
+           const updated = prev.filter((n) => n.id !== id);
+           setUnreadCount(updated.filter(n => !n.read).length);
+           return updated;
+        });
+      }
+    } catch (error) {
+      console.error('Failed to delete notification', error);
+    }
   }, []);
 
-  const addNotification = useCallback((n: Omit<Notification, 'id' | 'date' | 'read'>) => {
-    setNotifications((prev) => {
-      const newNotif: Notification = {
-        ...n,
-        id: `n${Date.now()}`,
-        date: new Date().toISOString().split('T')[0],
-        read: false,
-      };
-      const updated = [newNotif, ...prev];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      return updated;
-    });
-  }, []);
+  // For compatibility with any optimistic local add
+  const addNotification = useCallback((_n: any) => {
+    // Do nothing or call fetch
+    fetchNotifications();
+  }, [fetchNotifications]);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
-  return { notifications, unreadCount, markAsRead, markAllAsRead, addNotification };
+  return {
+    notifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+    deleteNotification,
+    refresh: fetchNotifications,
+    addNotification
+  };
 }

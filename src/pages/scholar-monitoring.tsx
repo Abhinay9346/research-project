@@ -26,6 +26,8 @@ import { toast } from 'sonner';
 type SortField = 'name' | 'registrationDate' | 'yearsRegistered' | 'publicationsCount' | 'department' | 'guideName';
 type SortDir = 'asc' | 'desc';
 
+const OVERDUE_LIMIT = 4;
+
 function yearsSince(dateStr: string): number {
   const reg = new Date(dateStr);
   const now = new Date();
@@ -33,7 +35,7 @@ function yearsSince(dateStr: string): number {
   return Math.round(years * 10) / 10;
 }
 
-function expectedCompletionYear(dateStr: string): string {
+function expectedCompletionYearFallback(dateStr: string): string {
   const reg = new Date(dateStr);
   reg.setFullYear(reg.getFullYear() + 5);
   return reg.getFullYear().toString();
@@ -46,7 +48,7 @@ export default function ScholarMonitoringPage() {
   const { projects } = useResearchProjects();
   const { explanations } = useGuideExplanations();
   const { reviews } = useChairmanReviews();
-  const { scholars } = useScholars();
+  const { scholars, loading } = useScholars();
 
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('all');
@@ -60,8 +62,17 @@ export default function ScholarMonitoringPage() {
   // Build enriched scholar data with computed fields
   const enrichedScholars = useMemo(() => {
     return scholars.map((s) => {
-      const years = yearsSince(s.registrationDate);
-      const isOverdue = years >= 4;
+      const currentYear = new Date().getFullYear();
+      const years = s.admissionYear
+        ? currentYear - s.admissionYear
+        : yearsSince(s.registrationDate);
+        
+      const isOverdue = years >= OVERDUE_LIMIT && s.status !== 'completed';
+      
+      const expectedYear = s.admissionYear 
+        ? (s.admissionYear + 5).toString() 
+        : expectedCompletionYearFallback(s.registrationDate);
+        
       const scholarLogs = logs.filter((l) => l.scholarId === s.id);
       const pendingLogs = scholarLogs.filter((l) => l.approvalStatus === 'pending').length;
       const scholarPubs = publications.filter((p) => p.scholarId === s.id);
@@ -73,7 +84,7 @@ export default function ScholarMonitoringPage() {
         ...s,
         yearsRegistered: years,
         isOverdue,
-        expectedYear: expectedCompletionYear(s.registrationDate),
+        expectedYear,
         weeklyLogStatus: pendingLogs > 0 ? `${pendingLogs} pending` : 'Up to date',
         publicationsCount: scholarPubs.length || s.publicationsCount,
         dcMeetingsCount: scholarMeetings.length,
@@ -97,15 +108,16 @@ export default function ScholarMonitoringPage() {
     if (overdueOnly) result = result.filter((s) => s.isOverdue);
     if (search) {
       const q = search.toLowerCase();
-      result = result.filter(
-        (s) =>
-          s.name.toLowerCase().includes(q) ||
-          s.email.toLowerCase().includes(q) ||
-          s.researchArea.toLowerCase().includes(q) ||
-          s.guideName.toLowerCase().includes(q) ||
-          s.department.toLowerCase().includes(q) ||
-          s.id.toLowerCase().includes(q)
-      );
+      result = result.filter((s) => {
+        return (
+          (s.name || '').toLowerCase().includes(q) ||
+          (s.email || '').toLowerCase().includes(q) ||
+          (s.researchArea || '').toLowerCase().includes(q) ||
+          (s.guideName || '').toLowerCase().includes(q) ||
+          (s.department || '').toLowerCase().includes(q) ||
+          (s.id || '').toLowerCase().includes(q)
+        );
+      });
     }
     // Sort
     result = [...result].sort((a, b) => {
@@ -126,10 +138,10 @@ export default function ScholarMonitoringPage() {
   const overdueScholars = enrichedScholars.filter((s) => s.isOverdue);
   const overdueCount = overdueScholars.length;
   const avgCompletion = totalScholars > 0
-    ? Math.round((enrichedScholars.reduce((sum, s) => sum + s.progress, 0) / totalScholars) * 10) / 10
+    ? Math.round((enrichedScholars.reduce((sum, s) => sum + (s.progress || 0), 0) / totalScholars) * 10) / 10
     : 0;
   const avgYears = totalScholars > 0
-    ? Math.round((enrichedScholars.reduce((sum, s) => sum + s.yearsRegistered, 0) / totalScholars) * 10) / 10
+    ? Math.round((enrichedScholars.reduce((sum, s) => sum + (s.yearsRegistered || 0), 0) / totalScholars) * 10) / 10
     : 0;
 
   // Department-wise overdue count
@@ -295,11 +307,16 @@ export default function ScholarMonitoringPage() {
       </Card>
 
       {/* Data table */}
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto scrollbar-thin">
-            <Table>
-              <TableHeader>
+      {loading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => <div key={i} className="h-16 rounded-xl animate-shimmer" />)}
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto scrollbar-thin">
+              <Table>
+                <TableHeader>
                 <TableRow>
                   <TableHead><SortHeader field="name" label="Scholar Name" /></TableHead>
                   <TableHead>Scholar ID</TableHead>
@@ -364,6 +381,7 @@ export default function ScholarMonitoringPage() {
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Detail drawer */}
       <AnimatePresence>

@@ -6,8 +6,8 @@ export interface User {
   email: string;
   role: Role;
   department?: string;
-  avatarUrl?: string;
   scholarId?: string;
+  guideId?: string;
   guideName?: string;
   researchDomain?: string;
 }
@@ -20,6 +20,7 @@ export interface Scholar {
   guideId: string;
   guideName: string;
   researchArea: string;
+  admissionYear?: number;
   registrationDate: string;
   status: 'active' | 'submitted' | 'completed' | 'on_leave';
   progress: number;

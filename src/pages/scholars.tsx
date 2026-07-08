@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Search, Users, Award, BookOpen, FileText, Download } from 'lucide-react';
 import { useScholars } from '@/lib/hooks';
 import { exportToCSV } from '@/lib/export-utils';
-import { PageHeader, StatusBadge, AnimatedCard } from '@/components/common';
+import { PageHeader, StatusBadge, AnimatedCard, EmptyState } from '@/components/common';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -21,12 +21,12 @@ export default function ScholarsPage() {
   const [search, setSearch] = useState(searchParams.get('q') || '');
   const [selected, setSelected] = useState<Scholar | null>(null);
 
-  const { scholars } = useScholars();
+  const { scholars, loading } = useScholars();
 
   const filtered = useMemo(() => {
     if (!search) return scholars;
     const q = search.toLowerCase();
-    return scholars.filter((s) => s.name.toLowerCase().includes(q) || s.researchArea?.toLowerCase().includes(q));
+    return scholars.filter((s) => (s.name || '').toLowerCase().includes(q) || (s.researchArea || '').toLowerCase().includes(q));
   }, [search, scholars]);
 
   return (
@@ -48,6 +48,13 @@ export default function ScholarsPage() {
         </CardContent>
       </Card>
 
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3, 4, 5, 6].map((i) => <div key={i} className="h-48 rounded-xl animate-shimmer" />)}
+        </div>
+      ) : filtered.length === 0 ? (
+        <Card><CardContent><EmptyState icon={Users} title="No scholars found" description="No scholars match your search criteria." /></CardContent></Card>
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map((scholar, i) => (
           <AnimatedCard key={scholar.id} delay={i * 0.05}>
@@ -56,7 +63,7 @@ export default function ScholarsPage() {
                 <div className="flex items-start gap-3 mb-4">
                   <Avatar className="w-12 h-12">
                     <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                      {scholar.name.split(' ').map((n: string) => n[0]).join('')}
+                      {(scholar.name || '').split(' ').map((n: string) => n[0]).join('')}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
@@ -89,6 +96,7 @@ export default function ScholarsPage() {
           </AnimatedCard>
         ))}
       </div>
+      )}
 
       {/* Detail dialog */}
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
@@ -103,7 +111,7 @@ export default function ScholarsPage() {
                 <div className="flex items-start gap-4">
                   <Avatar className="w-16 h-16">
                     <AvatarFallback className="bg-primary/10 text-primary text-xl font-semibold">
-                      {selected.name.split(' ').map((n: string) => n[0]).join('')}
+                      {(selected.name || '').split(' ').map((n: string) => n[0]).join('')}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1">

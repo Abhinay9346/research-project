@@ -27,10 +27,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
 
   const items = navItems.filter((i) => user && i.roles.includes(user.role));
-  const initials = user?.name.split(' ').map((n) => n[0]).join('').slice(0, 2) || 'U';
+  const initials = (user?.name || '').split(' ').map((n) => n[0]).join('').slice(0, 2) || 'U';
 
   const sidebarContent = useMemo(() => (
     <div className="flex flex-col h-full">
@@ -95,7 +95,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </div>
     </div>
-  ), [items, location.pathname, navigate, logout, user, unreadCount]);
+  ), [items, location.pathname, logout, user, unreadCount, initials]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -189,17 +189,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       {notifications.map((n) => (
                         <div
                           key={n.id}
-                          onClick={() => markAsRead(n.id)}
-                          className={cn('p-3 hover:bg-muted/50 cursor-pointer', !n.read && 'bg-primary/5')}
+                          className={cn('p-3 hover:bg-muted/50 flex group items-start gap-2', !n.read && 'bg-primary/5')}
                         >
-                          <div className="flex items-start gap-2">
-                            {!n.read && <span className="w-2 h-2 rounded-full bg-primary mt-1.5 shrink-0" />}
-                            <div className={cn('flex-1', n.read && 'pl-4')}>
-                              <div className="text-sm font-medium">{n.title}</div>
-                              <div className="text-xs text-muted-foreground mt-0.5">{n.message}</div>
-                              <div className="text-xs text-muted-foreground/70 mt-1">{n.date}</div>
+                          <div className="flex-1 cursor-pointer" onClick={() => markAsRead(n.id)}>
+                            <div className="flex items-start gap-2">
+                              {!n.read && <span className="w-2 h-2 rounded-full bg-primary mt-1.5 shrink-0" />}
+                              <div className={cn('flex-1', n.read && 'pl-4')}>
+                                <div className="text-sm font-medium">{n.title}</div>
+                                <div className="text-xs text-muted-foreground mt-0.5">{n.message}</div>
+                                <div className="text-xs text-muted-foreground/70 mt-1">{n.date}</div>
+                              </div>
                             </div>
                           </div>
+                          <button 
+                            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/10 text-destructive rounded"
+                            onClick={(e) => { e.stopPropagation(); deleteNotification(n.id); }}
+                          >
+                            <span className="text-xs">Delete</span>
+                          </button>
                         </div>
                       ))}
                     </div>

@@ -101,8 +101,15 @@ export function ScholarMonitoringDrawer({
   });
 
   const scholarId = scholar?.id || '';
-  const years = scholar ? yearsSince(scholar.registrationDate) : 0;
-  const isOverdue = years >= 4;
+  
+  const currentYear = new Date().getFullYear();
+  const OVERDUE_LIMIT = 4;
+  const years = scholar 
+    ? (scholar.admissionYear 
+        ? currentYear - scholar.admissionYear 
+        : yearsSince(scholar.registrationDate))
+    : 0;
+  const isOverdue = scholar ? (years >= OVERDUE_LIMIT && scholar.status !== 'completed') : false;
 
   const scholarProject = useMemo(() => projects.find((p) => p.scholarId === scholarId), [projects, scholarId]);
   const scholarExplanation = useMemo(() => explanations.find((e) => e.scholarId === scholarId), [explanations, scholarId]);
@@ -171,14 +178,14 @@ export function ScholarMonitoringDrawer({
       events.push({ date: p.publishedDate || p.title, title: `Publication: ${p.title.substring(0, 50)}...`, type: 'publication', icon: BookOpen });
     });
     scholarReviews.forEach((r) => {
-      events.push({ date: r.updatedAt, title: `Chairman Review: ${r.reviewStatus.replace(/_/g, ' ')}`, type: 'review', icon: MessageSquare });
+      events.push({ date: r.updatedAt, title: `Chairman Review: ${(r.reviewStatus || '').replace(/_/g, ' ')}`, type: 'review', icon: MessageSquare });
     });
     return events.sort((a, b) => b.date.localeCompare(a.date));
   }, [scholar, scholarLogs, scholarMeetings, scholarPubs, scholarReviews]);
 
   if (!scholar) return null;
 
-  const initials = scholar.name.split(' ').map((n) => n[0]).join('');
+  const initials = (scholar.name || '').split(' ').map((n) => n[0]).join('');
 
   const handleSaveExplanation = async () => {
     if (!explForm.reasonForDelay.trim()) {
@@ -262,7 +269,7 @@ export function ScholarMonitoringDrawer({
         project_title: projectForm.projectTitle,
         project_description: projectForm.projectDescription,
         research_domain: projectForm.researchDomain,
-        technologies_used: projectForm.technologiesUsed.split(',').map((t) => t.trim()).filter(Boolean),
+        technologies_used: (projectForm.technologiesUsed || '').split(',').map((t) => t.trim()).filter(Boolean),
         major_contributions: projectForm.majorContributions,
         related_publications: projectForm.relatedPublications,
         progress_percentage: projectForm.progressPercentage,
@@ -363,7 +370,7 @@ export function ScholarMonitoringDrawer({
                   <InfoCard icon={BookOpen} label="Research Area" value={scholar.researchArea} />
                   <InfoCard icon={Calendar} label="Registration" value={scholar.registrationDate} />
                   <InfoCard icon={Clock} label="Years Registered" value={`${years} years`} highlight={isOverdue} />
-                  <InfoCard icon={TrendingUp} label="Expected Completion" value={expectedCompletionYear(scholar.registrationDate)} />
+                  <InfoCard icon={TrendingUp} label="Expected Completion" value={scholar.admissionYear ? (scholar.admissionYear + 5).toString() : expectedCompletionYear(scholar.registrationDate)} />
                 </div>
 
                 <div>

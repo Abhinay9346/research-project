@@ -52,7 +52,7 @@ export default function WeeklyLogsPage() {
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(
-        (l) => l.researchWork.toLowerCase().includes(q) || l.scholarName.toLowerCase().includes(q)
+        (l) => (l.researchWork || '').toLowerCase().includes(q) || (l.scholarName || '').toLowerCase().includes(q)
       );
     }
     return result;
@@ -85,7 +85,7 @@ export default function WeeklyLogsPage() {
         await api.post('/weekly-logs', {
           scholar_id: user?.scholarId || 'unknown',
           scholar_name: user?.name || 'Scholar',
-          guide_id: user?.guideName || 'unknown',
+          guide_id: user?.guideId || 'unknown',
           week_date: data.weekDate,
           research_work: data.researchWork,
           hours_worked: data.hoursWorked || 0,
@@ -269,7 +269,7 @@ export default function WeeklyLogsPage() {
                         </Button>
                       )}
                       {(isScholar || canManage) && (
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => setDeleteTarget(log)}>
+                        <Button variant="ghost" size="icon" aria-label="Delete log" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => setDeleteTarget(log)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       )}

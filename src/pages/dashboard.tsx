@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Users, FileText, BookOpen, TrendingUp, Clock,
   AlertCircle, CalendarDays, Award, ArrowUpRight, ArrowDownRight,
+  Bell
 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
@@ -10,6 +11,8 @@ import {
 } from 'recharts';
 import { useAuth } from '@/lib/auth-context';
 import { useWeeklyLogs, usePublications, useMeetings, useScholars, useStats } from '@/lib/hooks';
+import { useNotifications } from '@/lib/use-notifications';
+import { useResearchProjects } from '@/lib/monitoring-hooks';
 import { PageHeader, AnimatedCard, StatusBadge } from '@/components/common';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +21,7 @@ import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -26,7 +30,8 @@ export default function DashboardPage() {
   const { publications } = usePublications();
   const { meetings } = useMeetings();
   const { scholars } = useScholars();
-  const { stats: dashboardStats } = useStats();
+  const { stats: dashboardStats, loading: statsLoading } = useStats();
+  const { notifications, markAsRead } = useNotifications();
 
   const isChairman = user?.role === 'chairman';
   const isGuide = user?.role === 'guide';
@@ -38,16 +43,27 @@ export default function DashboardPage() {
   const recentLogs = useMemo(() => logs.slice(0, 5), [logs]);
 
   // Calculate real stats from data
-  const myLogs = useMemo(() => logs.filter((l) => l.scholarId === user?.scholarId || l.scholarId === user?.id), [logs, user]);
-  const myPubs = useMemo(() => publications.filter((p) => p.scholarId === user?.scholarId || p.scholarId === user?.id), [publications, user]);
+  const myLogs = useMemo(() => logs.filter((l) => l.scholarId === user?.scholarId), [logs, user]);
+  const myPubs = useMemo(() => publications.filter((p) => p.scholarId === user?.scholarId), [publications, user]);
   const publishedPubs = publications.filter((p) => p.status === 'published').length;
+  
+  const { projects } = useResearchProjects();
+  const myProject = useMemo(() => projects.find((p) => p.scholarId === user?.scholarId), [projects, user]);
+  const assignedScholars = useMemo(() => scholars.filter(s => s.guideName === user?.name), [scholars, user]);
 
-  // Calculate overdue scholars (registered > 4 years ago)
+  // Calculate overdue scholars (registered > 4 years ago and not completed)
   const overdueScholars = useMemo(() => {
-    const now = new Date();
+    const currentYear = new Date().getFullYear();
+    const OVERDUE_LIMIT = 4;
     return scholars.filter((s) => {
-      const reg = new Date(s.registrationDate);
-      return (now.getTime() - reg.getTime()) / (1000 * 60 * 60 * 24 * 365.25) >= 4;
+      const years = s.admissionYear 
+        ? currentYear - s.admissionYear
+        : (() => {
+            const reg = new Date(s.registrationDate);
+            const now = new Date();
+            return (now.getTime() - reg.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+          })();
+      return years >= OVERDUE_LIMIT && s.status !== 'completed';
     });
   }, [scholars]);
   const overdueCount = overdueScholars.length;
@@ -97,23 +113,34 @@ export default function DashboardPage() {
 
   const stats = isScholar
     ? [
-        { label: 'Research Progress', value: '62%', icon: TrendingUp, trend: 'On track', trendUp: true, color: 'text-primary' },
+        { label: 'Research Progress', value: myProject ? `${Math.min(100, Math.max(0, myProject.progressPercentage || 0))}%` : '0%', icon: TrendingUp, trend: myProject ? myProject.thesisStatus : 'Not started', trendUp: true, color: 'text-primary' },
         { label: 'Weekly Logs', value: String(myLogs.length), icon: FileText, trend: `${myLogs.filter((l) => l.approvalStatus === 'pending').length} pending`, trendUp: true, color: 'text-emerald-500' },
         { label: 'Publications', value: String(myPubs.length), icon: BookOpen, trend: `${myPubs.filter((p) => p.status === 'under_review').length} under review`, trendUp: true, color: 'text-amber-500' },
-        { label: 'Next Milestone', value: 'Mar 2025', icon: Clock, trend: 'Mid-Seminar', trendUp: false, color: 'text-blue-500' },
+        { label: 'Upcoming Meetings', value: String(meetings.filter(m => m.scholarId === user?.scholarId).length), icon: Clock, trend: 'Next step', trendUp: false, color: 'text-blue-500' },
       ]
     : isGuide
     ? [
-        { label: 'Assigned Scholars', value: '4', icon: Users, trend: 'All active', trendUp: true, color: 'text-primary' },
+        { label: 'Assigned Scholars', value: String(assignedScholars.length), icon: Users, trend: 'Active mentees', trendUp: true, color: 'text-primary' },
         { label: 'Pending Reviews', value: String(pendingLogs.length), icon: FileText, trend: pendingLogs.length > 0 ? 'Needs attention' : 'All caught up', trendUp: pendingLogs.length === 0, color: 'text-amber-500' },
         { label: 'Publications', value: String(publications.length), icon: BookOpen, trend: `${publishedPubs} published`, trendUp: true, color: 'text-emerald-500' },
         { label: 'Upcoming Meetings', value: String(upcomingMeetings.length), icon: CalendarDays, trend: 'This month', trendUp: true, color: 'text-blue-500' },
       ]
+    : isAdmin
+    ? [
+        { label: 'Total Scholars', value: dashboardStats ? String(dashboardStats.totalScholars || 0) : '...', icon: Users, trend: 'Across departments', trendUp: true, color: 'text-primary' },
+        { label: 'Total Guides', value: dashboardStats ? String(dashboardStats.totalGuides || 0) : '...', icon: Award, trend: 'Active guides', trendUp: true, color: 'text-emerald-500' },
+        { label: 'Committee Members', value: dashboardStats ? String(dashboardStats.totalCommitteeMembers || 0) : '...', icon: Users, trend: 'Evaluators', trendUp: true, color: 'text-blue-500' },
+        { label: 'Publications', value: dashboardStats ? String(dashboardStats.totalPublications || 0) : '...', icon: BookOpen, trend: dashboardStats ? `${dashboardStats.publishedPublications || 0} published` : '...', trendUp: true, color: 'text-amber-500' },
+        { label: 'Weekly Logs', value: dashboardStats ? String(dashboardStats.totalWeeklyLogs || 0) : '...', icon: FileText, trend: dashboardStats ? `${dashboardStats.pendingWeeklyLogs || 0} pending` : '...', trendUp: true, color: 'text-emerald-500' },
+        { label: 'Meetings', value: dashboardStats ? String(dashboardStats.totalMeetings || 0) : '...', icon: CalendarDays, trend: dashboardStats ? `${dashboardStats.scheduledMeetings || 0} scheduled` : '...', trendUp: true, color: 'text-indigo-500' },
+        { label: 'Announcements', value: dashboardStats ? String(dashboardStats.announcements || 0) : '...', icon: Bell, trend: 'System wide', trendUp: true, color: 'text-orange-500' },
+        { label: 'Notifications', value: dashboardStats ? String(dashboardStats.totalNotifications || 0) : '...', icon: AlertCircle, trend: 'System alerts', trendUp: true, color: 'text-rose-500' },
+      ]
     : [
-        { label: 'Total Scholars', value: dashboardStats ? String(dashboardStats.totalScholars) : '...', icon: Users, trend: 'Across departments', trendUp: true, color: 'text-primary' },
-        { label: 'Active Guides', value: dashboardStats ? String(dashboardStats.totalGuides) : '...', icon: Award, trend: 'Active guides', trendUp: true, color: 'text-emerald-500' },
-        { label: 'Publications', value: dashboardStats ? String(dashboardStats.totalPublications) : '...', icon: BookOpen, trend: dashboardStats ? `${dashboardStats.publishedPublications} published` : '...', trendUp: true, color: 'text-amber-500' },
-        { label: 'Pending Approvals', value: dashboardStats ? String(dashboardStats.pendingWeeklyLogs) : '...', icon: AlertCircle, trend: (dashboardStats?.pendingWeeklyLogs > 0) ? 'Action needed' : 'All clear', trendUp: (dashboardStats?.pendingWeeklyLogs === 0), color: 'text-red-500' },
+        { label: 'Total Scholars', value: dashboardStats ? String(dashboardStats.totalScholars || 0) : '...', icon: Users, trend: 'Across departments', trendUp: true, color: 'text-primary' },
+        { label: 'Active Guides', value: dashboardStats ? String(dashboardStats.totalGuides || 0) : '...', icon: Award, trend: 'Active guides', trendUp: true, color: 'text-emerald-500' },
+        { label: 'Publications', value: dashboardStats ? String(dashboardStats.totalPublications || 0) : '...', icon: BookOpen, trend: dashboardStats ? `${dashboardStats.publishedPublications || 0} published` : '...', trendUp: true, color: 'text-amber-500' },
+        { label: 'Pending Approvals', value: dashboardStats ? String(dashboardStats.pendingWeeklyLogs || 0) : '...', icon: AlertCircle, trend: (dashboardStats?.pendingWeeklyLogs > 0) ? 'Action needed' : 'All clear', trendUp: (dashboardStats?.pendingWeeklyLogs === 0), color: 'text-red-500' },
       ];
 
   if (!user) return null;
@@ -121,7 +148,7 @@ export default function DashboardPage() {
   return (
     <div>
       <PageHeader
-        title={`Welcome back, ${user.name.split(' ').slice(-1)[0]}`}
+        title={`Welcome back, ${(user.name || 'User').split(' ').slice(-1)[0]}`}
         description={
           isScholar
             ? "Here's your research progress overview."
@@ -179,7 +206,9 @@ export default function DashboardPage() {
                       {stat.trend}
                     </div>
                   </div>
-                  <div className="font-display text-2xl font-bold">{stat.value}</div>
+                  <div className="font-display text-2xl font-bold">
+                    {statsLoading ? <Skeleton className="h-8 w-16" /> : stat.value}
+                  </div>
                   <div className="text-sm text-muted-foreground mt-0.5">{stat.label}</div>
                 </CardContent>
               </Card>
@@ -325,6 +354,38 @@ export default function DashboardPage() {
                       <div className="text-sm font-medium truncate">{m.title}</div>
                       <div className="text-xs text-muted-foreground mt-0.5">{m.scholarName}</div>
                       <div className="text-xs text-muted-foreground mt-0.5">{m.time}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </AnimatedCard>
+      </div>
+
+      <div className="mt-4">
+        <AnimatedCard delay={0.3}>
+          <Card>
+            <CardHeader className="pb-2 flex flex-row items-center justify-between">
+              <CardTitle className="text-base">Recent Notifications</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {notifications.slice(0, 5).length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-8">No recent notifications.</p>
+                )}
+                {notifications.slice(0, 5).map((n) => (
+                  <div key={n.id} className={cn('flex items-start gap-3 p-3 rounded-lg border border-border cursor-pointer hover:bg-muted/50 transition-colors', !n.read && 'bg-primary/5')} onClick={() => markAsRead(n.id)}>
+                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                      <Bell className="w-4 h-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-medium truncate">{n.title}</span>
+                        {!n.read && <span className="w-2 h-2 rounded-full bg-primary shrink-0" />}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-0.5">{n.message}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">{n.date}</div>
                     </div>
                   </div>
                 ))}

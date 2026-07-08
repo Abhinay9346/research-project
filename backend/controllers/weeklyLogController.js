@@ -1,4 +1,5 @@
 const WeeklyLog = require('../models/WeeklyLog');
+const NotificationService = require('../services/NotificationService');
 const { buildRoleWhereClause } = require('../utils/roleFilter');
 
 exports.getAll = async (req, res, next) => {
@@ -40,6 +41,23 @@ exports.create = async (req, res, next) => {
     }
 
     const data = await WeeklyLog.create(req.body);
+
+    // Notify Guide
+    let guideId = req.body.guide_id;
+    if (guideId && guideId.length !== 36) { // Not a UUID, assume name
+       guideId = await NotificationService.getUserIdByName(guideId);
+    }
+    if (guideId && guideId !== 'unknown') {
+      await NotificationService.notify({
+        recipient_user_id: guideId,
+        title: 'New Weekly Log',
+        message: `${scholar_name} submitted a weekly log for ${week_date}.`,
+        type: 'info',
+        module: 'weekly_logs',
+        record_id: data.insertId || data.id
+      });
+    }
+
     res.status(201).json({ success: true, message: 'Record created successfully', data });
   } catch (error) {
     next(error);
@@ -56,6 +74,25 @@ exports.update = async (req, res, next) => {
     }
 
     const data = await WeeklyLog.update(id, req.body);
+
+    // Notify Scholar if status changed
+    if (req.body.approval_status) {
+      const log = await WeeklyLog.findById(id);
+      if (log) {
+        const scholarId = await NotificationService.getUserIdByName(log.scholar_name);
+        if (scholarId) {
+           await NotificationService.notify({
+             recipient_user_id: scholarId,
+             title: 'Weekly Log Updated',
+             message: `Your weekly log for ${log.week_date} was ${req.body.approval_status}.`,
+             type: req.body.approval_status === 'approved' ? 'success' : 'warning',
+             module: 'weekly_logs',
+             record_id: id
+           });
+        }
+      }
+    }
+
     res.status(200).json({ success: true, message: 'Record updated successfully', data });
   } catch (error) {
     if (error.message.includes('not found')) {

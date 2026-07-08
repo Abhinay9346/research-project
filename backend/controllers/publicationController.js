@@ -1,4 +1,5 @@
 const Publication = require('../models/Publication');
+const NotificationService = require('../services/NotificationService');
 const { buildRoleWhereClause } = require('../utils/roleFilter');
 
 exports.getAll = async (req, res, next) => {
@@ -40,6 +41,36 @@ exports.create = async (req, res, next) => {
     }
 
     const data = await Publication.create(req.body);
+
+    // Notify Guide (if applicable) and Admins
+    if (req.user && (req.user.guideId || req.user.guideName)) {
+      let guideId = req.user.guideId;
+      if (!guideId || guideId.length !== 36) { // fallback to name lookup
+         guideId = await NotificationService.getUserIdByName(req.user.guideName);
+      }
+      if (guideId && guideId !== 'unknown') {
+        await NotificationService.notify({
+          recipient_user_id: guideId,
+          title: 'New Publication Submitted',
+          message: `${scholar_name} submitted a new publication: ${title}`,
+          type: 'info',
+          module: 'publications',
+          record_id: data.insertId || data.id
+        });
+      }
+    }
+    const adminIds = await NotificationService.getUsersByRole('admin');
+    if (adminIds.length > 0) {
+      await NotificationService.notifyMultiple({
+        recipient_user_ids: adminIds,
+        title: 'New Publication Submitted',
+        message: `${scholar_name} submitted a new publication: ${title}`,
+        type: 'info',
+        module: 'publications',
+        record_id: data.insertId || data.id
+      });
+    }
+
     res.status(201).json({ success: true, message: 'Record created successfully', data });
   } catch (error) {
     next(error);
@@ -56,6 +87,26 @@ exports.update = async (req, res, next) => {
     }
 
     const data = await Publication.update(id, req.body);
+
+    // Notify Scholar on significant updates
+    if (req.body.status || req.body.verified !== undefined) {
+      const pub = await Publication.findById(id);
+      if (pub) {
+        const scholarId = await NotificationService.getUserIdByName(pub.scholar_name);
+        if (scholarId) {
+          const updateMsg = req.body.verified ? 'verified' : `marked as ${req.body.status}`;
+          await NotificationService.notify({
+            recipient_user_id: scholarId,
+            title: 'Publication Updated',
+            message: `Your publication "${pub.title}" was ${updateMsg}.`,
+            type: req.body.verified ? 'success' : 'info',
+            module: 'publications',
+            record_id: id
+          });
+        }
+      }
+    }
+
     res.status(200).json({ success: true, message: 'Record updated successfully', data });
   } catch (error) {
     if (error.message.includes('not found')) {

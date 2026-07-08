@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { GraduationCap, Eye, EyeOff, ArrowRight, Shield, Users, BookOpen, Award } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
+import api from '@/lib/api';
 
 const roleOptions: { value: Role; label: string; icon: typeof Shield; desc: string }[] = [
   { value: 'chairman', label: 'Chairman', icon: Shield, desc: 'Institution oversight' },
@@ -24,6 +25,40 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [stats, setStats] = useState<{
+    totalScholars: string | number;
+    totalPublications: string | number;
+    totalGuides: string | number;
+    departments: string | number;
+  }>({
+    totalScholars: '--',
+    totalPublications: '--',
+    totalGuides: '--',
+    departments: '--'
+  });
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await api.get('/dashboard/stats');
+        const res = response as any;
+        
+        if (res?.success) {
+          setStats({
+            totalScholars: res.data.totalScholars ?? 0,
+            totalPublications: res.data.totalPublications ?? 0,
+            totalGuides: res.data.totalGuides ?? 0,
+            departments: res.data.departments ?? 0
+          });
+        } else {
+          setStats({ totalScholars: 0, totalPublications: 0, totalGuides: 0, departments: 0 });
+        }
+      } catch (err) {
+        setStats({ totalScholars: 0, totalPublications: 0, totalGuides: 0, departments: 0 });
+      }
+    };
+    fetchStats();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,10 +114,10 @@ export default function LoginPage() {
             </motion.p>
             <div className="grid grid-cols-2 gap-4 max-w-md pt-4">
               {[
-                { label: 'Active Scholars', value: '242+' },
-                { label: 'Publications', value: '640+' },
-                { label: 'Research Guides', value: '64' },
-                { label: 'Departments', value: '6' },
+                { label: 'Active Scholars', value: stats.totalScholars },
+                { label: 'Publications', value: stats.totalPublications },
+                { label: 'Research Guides', value: stats.totalGuides },
+                { label: 'Departments', value: stats.departments },
               ].map((stat, i) => (
                 <motion.div
                   key={stat.label}

@@ -14,6 +14,7 @@ const announcementRoutes = require('./routes/announcementRoutes');
 const researchProjectRoutes = require('./routes/researchProjectRoutes');
 const guideExplanationRoutes = require('./routes/guideExplanationRoutes');
 const chairmanReviewRoutes = require('./routes/chairmanReviewRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 
 const app = express();
 
@@ -45,6 +46,7 @@ app.use('/api/announcements', announcementRoutes);
 app.use('/api/research-projects', researchProjectRoutes);
 app.use('/api/guide-explanations', guideExplanationRoutes);
 app.use('/api/chairman-reviews', chairmanReviewRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Centralized error handling middleware
 // This should be after all routes and other middlewares

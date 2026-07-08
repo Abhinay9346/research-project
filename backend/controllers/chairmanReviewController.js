@@ -1,4 +1,5 @@
 const ChairmanReview = require('../models/ChairmanReview');
+const NotificationService = require('../services/NotificationService');
 const { buildRoleWhereClause } = require('../utils/roleFilter');
 
 exports.getAll = async (req, res, next) => {
@@ -40,6 +41,19 @@ exports.create = async (req, res, next) => {
     }
 
     const data = await ChairmanReview.create(req.body);
+
+    const scholarUserId = await NotificationService.getUserIdByScholarId(scholar_id);
+    if (scholarUserId) {
+      await NotificationService.notify({
+        recipient_user_id: scholarUserId,
+        title: 'New Chairman Review',
+        message: `The Chairman has submitted a new review for your progress.`,
+        type: 'info',
+        module: 'chairman_reviews',
+        record_id: data.insertId || data.id
+      });
+    }
+
     res.status(201).json({ success: true, message: 'Record created successfully', data });
   } catch (error) {
     next(error);
@@ -56,6 +70,22 @@ exports.update = async (req, res, next) => {
     }
 
     const data = await ChairmanReview.update(id, req.body);
+
+    const review = await ChairmanReview.findById(id);
+    if (review) {
+      const scholarUserId = await NotificationService.getUserIdByScholarId(review.scholar_id);
+      if (scholarUserId) {
+        await NotificationService.notify({
+          recipient_user_id: scholarUserId,
+          title: 'Chairman Review Updated',
+          message: `The Chairman has updated the review for your progress.`,
+          type: 'info',
+          module: 'chairman_reviews',
+          record_id: id
+        });
+      }
+    }
+
     res.status(200).json({ success: true, message: 'Record updated successfully', data });
   } catch (error) {
     if (error.message.includes('not found')) {

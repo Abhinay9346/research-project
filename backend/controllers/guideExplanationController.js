@@ -1,4 +1,5 @@
 const GuideExplanation = require('../models/GuideExplanation');
+const NotificationService = require('../services/NotificationService');
 const { buildRoleWhereClause } = require('../utils/roleFilter');
 
 exports.getAll = async (req, res, next) => {
@@ -40,6 +41,19 @@ exports.create = async (req, res, next) => {
     }
 
     const data = await GuideExplanation.create(req.body);
+
+    const chairmanIds = await NotificationService.getUsersByRole('chairman');
+    if (chairmanIds.length > 0) {
+      await NotificationService.notifyMultiple({
+        recipient_user_ids: chairmanIds,
+        title: 'New Guide Explanation',
+        message: `${req.user.userName || req.body.guide_name || 'A guide'} submitted an explanation for scholar ${scholar_id}.`,
+        type: 'warning',
+        module: 'guide_explanations',
+        record_id: data.insertId || data.id
+      });
+    }
+
     res.status(201).json({ success: true, message: 'Record created successfully', data });
   } catch (error) {
     next(error);

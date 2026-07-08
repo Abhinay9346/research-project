@@ -49,7 +49,7 @@ export default function PublicationsPage() {
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(
-        (p) => p.title.toLowerCase().includes(q) || p.journal.toLowerCase().includes(q) || p.scholarName.toLowerCase().includes(q)
+        (p) => (p.title || '').toLowerCase().includes(q) || (p.journal || '').toLowerCase().includes(q) || (p.scholarName || '').toLowerCase().includes(q)
       );
     }
     return result;
@@ -279,17 +279,17 @@ export default function PublicationsPage() {
                         </Button>
                       )}
                       {isScholar && (
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditing(pub); setDialogOpen(true); }}>
+                        <Button variant="ghost" size="icon" aria-label="Edit publication" className="h-7 w-7" onClick={() => { setEditing(pub); setDialogOpen(true); }}>
                           <Edit className="w-3.5 h-3.5" />
                         </Button>
                       )}
                       {(isScholar || canVerify) && (
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => setDeleteTarget(pub)}>
+                        <Button variant="ghost" size="icon" aria-label="Delete publication" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => setDeleteTarget(pub)}>
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>
                       )}
                       {pub.journalLink && (
-                        <a href={pub.journalLink} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary p-1">
+                        <a href={pub.journalLink} aria-label="View publication link" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary p-1">
                           <ExternalLink className="w-4 h-4" />
                         </a>
                       )}

@@ -25,6 +25,58 @@ exports.getStats = async (req, res, next) => {
     const [[{ guideExplanations }]] = await db.execute('SELECT COUNT(*) AS guideExplanations FROM guide_explanations');
     const [[{ chairmanReviews }]] = await db.execute('SELECT COUNT(*) AS chairmanReviews FROM chairman_reviews');
     const [[{ announcements }]] = await db.execute('SELECT COUNT(*) AS announcements FROM announcements');
+    const [[{ totalNotifications }]] = await db.execute('SELECT COUNT(*) AS totalNotifications FROM notifications');
+    
+    const [[{ departments }]] = await db.execute(`
+      SELECT COUNT(DISTINCT department) AS departments
+      FROM users
+      WHERE department IS NOT NULL
+      AND department <> ''
+    `);
+    
+    // Generate dynamic department statistics
+    const [departmentRows] = await db.execute(`
+      SELECT DISTINCT department
+      FROM users
+      WHERE department IS NOT NULL AND department <> ''
+      ORDER BY department
+    `);
+
+    const departmentStats = [];
+    const currentYear = new Date().getFullYear();
+    for (const row of departmentRows) {
+      const dept = row.department;
+      
+      const [[{ totalScholars }]] = await db.execute(
+        'SELECT COUNT(*) AS totalScholars FROM users WHERE role="scholar" AND department=?',
+        [dept]
+      );
+      
+      const [[{ totalGuides }]] = await db.execute(
+        'SELECT COUNT(*) AS totalGuides FROM users WHERE role="guide" AND department=?',
+        [dept]
+      );
+      
+      const [[{ totalPublications }]] = await db.execute(
+        'SELECT COUNT(*) AS totalPublications FROM publications p JOIN users u ON p.scholar_id = u.scholar_id WHERE u.department=?',
+        [dept]
+      );
+
+      const [[{ overdueScholars }]] = await db.execute(
+        'SELECT COUNT(*) AS overdueScholars FROM users WHERE role="scholar" AND department=? AND (? - admission_year) >= 4 AND status != "completed"',
+        [dept, currentYear]
+      );
+      
+      departmentStats.push({
+        code: dept, // UI expects 'code' or name
+        name: dept,
+        scholarsCount: totalScholars,
+        guidesCount: totalGuides,
+        publicationsCount: totalPublications,
+        overdueScholars: overdueScholars,
+        hod: 'Not Assigned' // Default HOD placeholder for UI
+      });
+    }
     
     res.status(200).json({
       success: true,
@@ -46,7 +98,10 @@ exports.getStats = async (req, res, next) => {
         completedProjects,
         guideExplanations,
         chairmanReviews,
-        announcements
+        announcements,
+        totalNotifications,
+        departments,
+        departmentStats
       }
     });
   } catch (err) {

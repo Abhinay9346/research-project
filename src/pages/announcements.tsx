@@ -124,10 +124,10 @@ export default function AnnouncementsPage() {
                       </div>
                       {canCreate && (
                         <div className="flex gap-1 shrink-0">
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditing(a); setDialogOpen(true); }}>
+                          <Button variant="ghost" size="icon" aria-label="Edit announcement" className="h-8 w-8" onClick={() => { setEditing(a); setDialogOpen(true); }}>
                             <Edit className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => setDeleteTarget(a)}>
+                          <Button variant="ghost" size="icon" aria-label="Delete announcement" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => setDeleteTarget(a)}>
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>

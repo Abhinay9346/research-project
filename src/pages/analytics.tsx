@@ -11,22 +11,11 @@ import { useWeeklyLogs, usePublications, useScholars } from '@/lib/hooks';
 import { PageHeader, AnimatedCard } from '@/components/common';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
 
-const guidePerformance = [
-  { guide: 'Dr. P. Sharma', scholars: 4, publications: 24, avg_progress: 67 },
-  { guide: 'Dr. A. Verma', scholars: 5, publications: 31, avg_progress: 72 },
-  { guide: 'Dr. S. Nair', scholars: 3, publications: 18, avg_progress: 58 },
-  { guide: 'Dr. M. Krishnan', scholars: 6, publications: 42, avg_progress: 75 },
-  { guide: 'Dr. R. Iyer', scholars: 4, publications: 27, avg_progress: 64 },
-];
 
-const radarData = [
-  { metric: 'Publications', CSE: 156, ECE: 134, ME: 98 },
-  { metric: 'Scholars', CSE: 48, ECE: 52, ME: 41 },
-  { metric: 'Guides', CSE: 12, ECE: 14, ME: 11 },
-  { metric: 'Progress', CSE: 72, ECE: 68, ME: 61 },
-  { metric: 'Awards', CSE: 8, ECE: 6, ME: 4 },
-];
 
 export default function AnalyticsPage() {
   const { logs } = useWeeklyLogs();
@@ -82,6 +71,66 @@ export default function AnalyticsPage() {
 
   const topScholars = [...scholars].sort((a, b) => (b.publicationsCount || 0) - (a.publicationsCount || 0)).slice(0, 5);
 
+  const guidePerformanceData = useMemo(() => {
+    const guides: Record<string, { scholars: number; publications: number; progress: number }> = {};
+    scholars.forEach(s => {
+      if (s.guideName && s.guideName !== 'unknown') {
+        if (!guides[s.guideName]) guides[s.guideName] = { scholars: 0, publications: 0, progress: 0 };
+        guides[s.guideName].scholars++;
+        guides[s.guideName].progress += s.progress || 0;
+      }
+    });
+    publications.forEach(p => {
+      const s = scholars.find(sc => sc.id === p.scholarId);
+      if (s && s.guideName && guides[s.guideName]) {
+        guides[s.guideName].publications++;
+      }
+    });
+    return Object.entries(guides).map(([guide, data]) => ({
+      guide,
+      scholars: data.scholars,
+      publications: data.publications,
+      avg_progress: data.scholars > 0 ? Math.round(data.progress / data.scholars) : 0
+    })).sort((a, b) => b.publications - a.publications).slice(0, 5);
+  }, [scholars, publications]);
+
+  const radarDataCalculated = useMemo(() => {
+    const depts = Array.from(new Set(scholars.map(s => s.department).filter(Boolean)));
+    if (depts.length === 0) return [];
+    
+    const initialMetric = (name: string) => {
+      const obj: any = { metric: name };
+      depts.forEach(d => obj[d] = 0);
+      return obj;
+    };
+    
+    const pubs = initialMetric('Publications');
+    const schs = initialMetric('Scholars');
+    const progs = initialMetric('Progress');
+    const counts = initialMetric('Count'); // for avg progress
+    
+    scholars.forEach(s => {
+      if (s.department) {
+        schs[s.department]++;
+        progs[s.department] += s.progress || 0;
+        counts[s.department]++;
+      }
+    });
+    
+    publications.forEach(p => {
+      const s = scholars.find(sc => sc.id === p.scholarId);
+      if (s && s.department) {
+        pubs[s.department]++;
+      }
+    });
+    
+    depts.forEach(d => {
+      progs[d] = counts[d] > 0 ? Math.round(progs[d] / counts[d]) : 0;
+    });
+    
+    return [pubs, schs, progs];
+  }, [scholars, publications]);
+
   return (
     <div>
       <PageHeader title="Analytics & Insights" description="Institution-wide research performance metrics and trends." />
@@ -89,9 +138,9 @@ export default function AnalyticsPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
           { label: 'Total Publications', value: String(publications.length), icon: BookOpen, trend: `${publishedPubs} published`, color: 'text-primary' },
-          { label: 'Avg Progress', value: '68%', icon: TrendingUp, trend: 'Across all scholars', color: 'text-emerald-500' },
-          { label: 'Active Scholars', value: '242', icon: Users, trend: '12 new this year', color: 'text-blue-500' },
-          { label: 'Awards Won', value: '34', icon: Award, trend: '+8 this year', color: 'text-amber-500' },
+          { label: 'Avg Progress', value: scholars.length > 0 ? `${Math.round(scholars.reduce((a, b) => a + (b.progress || 0), 0) / scholars.length)}%` : '0%', icon: TrendingUp, trend: 'Across all scholars', color: 'text-emerald-500' },
+          { label: 'Active Scholars', value: String(scholars.length), icon: Users, trend: 'Active users', color: 'text-blue-500' },
+          { label: 'Guides', value: String(new Set(scholars.map(s => s.guideName).filter(Boolean)).size), icon: Award, trend: 'Active guides', color: 'text-amber-500' },
         ].map((s, i) => {
           const Icon = s.icon;
           return (
@@ -170,14 +219,25 @@ export default function AnalyticsPage() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <RadarChart data={radarData}>
+                <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarDataCalculated}>
                   <PolarGrid stroke="hsl(var(--border))" />
-                  <PolarAngleAxis dataKey="metric" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                  <PolarRadiusAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-                  <Radar name="CSE" dataKey="CSE" stroke="hsl(var(--chart-1))" fill="hsl(var(--chart-1))" fillOpacity={0.3} />
-                  <Radar name="ECE" dataKey="ECE" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2))" fillOpacity={0.3} />
-                  <Radar name="ME" dataKey="ME" stroke="hsl(var(--chart-3))" fill="hsl(var(--chart-3))" fillOpacity={0.3} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <PolarAngleAxis dataKey="metric" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                  <PolarRadiusAxis angle={30} domain={[0, 'auto']} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} />
+                  {radarDataCalculated.length > 0 && Object.keys(radarDataCalculated[0])
+                    .filter(k => k !== 'metric')
+                    .map((dept, i) => {
+                      const colors = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b'];
+                      const color = colors[i % colors.length];
+                      return (
+                        <Radar key={dept} name={dept} dataKey={dept} stroke={color} fill={color} fillOpacity={0.4} />
+                      );
+                    })
+                  }
+                  <Legend wrapperStyle={{ fontSize: '12px' }} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
+                    itemStyle={{ color: 'hsl(var(--foreground))' }}
+                  />
                 </RadarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -218,23 +278,33 @@ export default function AnalyticsPage() {
               <CardTitle className="text-base">Guide Performance Ranking</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {[...guidePerformance].sort((a, b) => b.publications - a.publications).map((g, i) => (
-                  <div key={g.guide} className="flex items-center gap-3">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                      i === 0 ? 'bg-amber-500/20 text-amber-600' :
-                      i === 1 ? 'bg-slate-400/20 text-slate-500' :
-                      i === 2 ? 'bg-orange-700/20 text-orange-700' :
-                      'bg-muted text-muted-foreground'
-                    }`}>{i + 1}</div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{g.guide}</div>
-                      <div className="text-xs text-muted-foreground">{g.scholars} scholars · {g.publications} publications</div>
-                    </div>
-                    <Badge variant="secondary" className="text-xs">{g.avg_progress}% avg</Badge>
-                  </div>
-                ))}
-              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Guide</TableHead>
+                    <TableHead className="text-right">Scholars</TableHead>
+                    <TableHead className="text-right">Pubs</TableHead>
+                    <TableHead className="text-right">Progress</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {guidePerformanceData.map((g) => (
+                    <TableRow key={g.guide}>
+                      <TableCell className="font-medium">{g.guide}</TableCell>
+                      <TableCell className="text-right">{g.scholars}</TableCell>
+                      <TableCell className="text-right">{g.publications}</TableCell>
+                      <TableCell className="text-right">
+                        <Badge variant="outline" className={g.avg_progress > 65 ? 'text-emerald-500 border-emerald-500/20' : 'text-amber-500 border-amber-500/20'}>
+                          {g.avg_progress}%
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {guidePerformanceData.length === 0 && (
+                    <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">No guide data available</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         </AnimatedCard>

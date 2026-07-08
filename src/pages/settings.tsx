@@ -57,7 +57,7 @@ export default function SettingsPage() {
   }, [user]);
 
   if (!user) return null;
-  const initials = user.name.split(' ').map((n) => n[0]).join('').slice(0, 2);
+  const initials = (user?.name || '').split(' ').map((n) => n[0]).join('').slice(0, 2);
 
   const handleSaveProfile = () => {
     if (!name.trim() || !email.trim()) {

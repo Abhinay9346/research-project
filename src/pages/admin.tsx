@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import {
-  Building2, Database, Activity, Plus, Search, MoreHorizontal, Download, Upload,
-  ShieldCheck,
+  Building2, Plus, Search, MoreHorizontal, Download,
+  ShieldCheck, Users,
 } from 'lucide-react';
-import { useUsers } from '@/lib/hooks';
+import { useUsers, useStats } from '@/lib/hooks';
 import { exportToCSV } from '@/lib/export-utils';
-import { PageHeader, AnimatedCard } from '@/components/common';
+import { PageHeader, AnimatedCard, EmptyState } from '@/components/common';
+import api from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,70 +28,93 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 
-const auditLogs = [
-  { id: 1, user: 'Admin Office', action: 'Created announcement', target: 'Mid-Seminar Schedule', time: '2 hours ago', type: 'create' },
-  { id: 2, user: 'Dr. Priya Sharma', action: 'Approved weekly log', target: 'John Doe - Week 26', time: '5 hours ago', type: 'approve' },
-  { id: 3, user: 'Chairman', action: 'Generated report', target: 'Department Analytics Q2', time: '1 day ago', type: 'report' },
-  { id: 4, user: 'Admin Office', action: 'Updated user role', target: 'Vikram Singh → Scholar', time: '2 days ago', type: 'update' },
-  { id: 5, user: 'Dr. Priya Sharma', action: 'Rejected weekly log', target: 'Vikram Singh - Week 25', time: '3 days ago', type: 'reject' },
+export const DEPARTMENTS = [
+  "Artificial Intelligence",
+  "Computer Science",
+  "Electronics",
+  "Electrical",
+  "Mechanical",
+  "Civil",
+  "Chemical"
 ];
-
-const logTypeColors: Record<string, string> = {
-  create: 'bg-emerald-500/10 text-emerald-600',
-  approve: 'bg-blue-500/10 text-blue-600',
-  report: 'bg-amber-500/10 text-amber-600',
-  update: 'bg-purple-500/10 text-purple-600',
-  reject: 'bg-red-500/10 text-red-600',
-};
-
 interface ManagedUser {
   id: string;
   name: string;
   email: string;
   role: string;
   department: string;
+  guide_id?: string;
+  guide_name?: string;
   status: string;
 }
 
 export default function AdminPage() {
   const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
   const [addUserOpen, setAddUserOpen] = useState(false);
-  const { users, setUsers } = useUsers();
+  const { users, setUsers, loading } = useUsers();
+  const { stats: dashboardStats } = useStats();
 
-  // Compute departments from users
-  const departmentsData = [
-    { code: 'CSE', name: 'Computer Science and Engineering', hod: 'Dr. S. K. Singh' },
-    { code: 'ECE', name: 'Electronics and Communication', hod: 'Dr. M. L. Sharma' },
-    { code: 'ME', name: 'Mechanical Engineering', hod: 'Dr. R. K. Verma' },
-    { code: 'EE', name: 'Electrical Engineering', hod: 'Dr. P. N. Rao' },
-    { code: 'CE', name: 'Civil Engineering', hod: 'Dr. K. S. Reddy' },
-    { code: 'CH', name: 'Chemical Engineering', hod: 'Dr. A. B. Ghosh' },
-  ].map(d => {
-    const dUsers = users.filter((u: any) => u.department === d.code);
-    const scholarsCount = dUsers.filter((u: any) => u.role === 'scholar').length;
-    const guidesCount = dUsers.filter((u: any) => u.role === 'guide').length;
-    // We would ideally map publications to scholars to find dept publications, but this is an approximation for admin
-    return { ...d, scholarsCount, guidesCount, publicationsCount: Math.floor(scholarsCount * 1.5) };
-  });
+  const departmentsData = dashboardStats?.departmentStats || [];
 
   const [editUser, setEditUser] = useState<ManagedUser | null>(null);
 
-  const filteredUsers = users.filter((u) => !search || u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase()));
+  const filteredUsers = users.filter((u) => {
+    const matchesSearch = !search || (u.name || '').toLowerCase().includes(search.toLowerCase()) || (u.email || '').toLowerCase().includes(search.toLowerCase());
+    const matchesRole = roleFilter === 'all' || (u.role || '').toLowerCase() === roleFilter.toLowerCase();
+    return matchesSearch && matchesRole;
+  });
+  const availableGuides = users.filter((u) => (u.role || '').toLowerCase() === 'guide');
 
-  const handleAddUser = (data: { name: string; email: string; role: string; department: string }) => {
+  const handleAddUser = async (data: { name: string; email: string; role: string; department: string; guide_id?: string }) => {
     if (!data.name.trim() || !data.email.trim()) {
       toast.error('Name and email are required.');
       return;
     }
-    setUsers((prev) => [...prev, { id: `u${Date.now()}`, ...data, status: 'active' }]);
-    toast.success('User added successfully.');
+    try {
+      const response = await api.post('/users', {
+        full_name: data.name,
+        email: data.email,
+        role: (data.role || '').toLowerCase(),
+        department: data.department,
+        guide_id: data.guide_id
+      });
+      const res = response as any;
+      if (res.success) {
+        toast.success('User created successfully.');
+        toast.info("Default password is the user's email address.");
+        // Re-fetch users
+        const fetchedResponse = await api.get('/users');
+        const fetched = fetchedResponse as any;
+        if (fetched.success) setUsers(fetched.data);
+      }
+    } catch (err: any) {
+      if (err.response?.status === 409) {
+        toast.error('Email already exists');
+      } else {
+        toast.error('Failed to create user');
+      }
+    }
     setAddUserOpen(false);
   };
 
-  const handleEditUser = (data: { name: string; email: string; role: string; department: string }) => {
+  const handleEditUser = async (data: { name: string; email: string; role: string; department: string; guide_id?: string }) => {
     if (!editUser) return;
-    setUsers((prev) => prev.map((u) => (u.id === editUser.id ? { ...u, ...data } : u)));
-    toast.success('User updated successfully.');
+    try {
+      await api.put(`/users/${editUser.id}`, {
+        full_name: data.name,
+        email: data.email,
+        role: (data.role || '').toLowerCase(),
+        department: data.department,
+        guide_id: data.guide_id
+      });
+      toast.success('User updated successfully.');
+      const fetchedResponse = await api.get('/users');
+      const fetched = fetchedResponse as any;
+      if (fetched.success) setUsers(fetched.data);
+    } catch (err: any) {
+      toast.error('Failed to update user. ' + (err as Error).message);
+    }
     setEditUser(null);
   };
 
@@ -98,35 +122,31 @@ export default function AdminPage() {
     toast.success(`Password reset link sent to ${user.email}.`);
   };
 
-  const handleRestore = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        try {
-          const data = JSON.parse(ev.target?.result as string);
-          if (data.users && Array.isArray(data.users)) {
-            setUsers(data.users);
-            toast.success('Database restored successfully.');
-          } else {
-            toast.error('Invalid backup file format.');
-          }
-        } catch {
-          toast.error('Failed to parse backup file.');
-        }
-      };
-      reader.readAsText(file);
-    };
-    input.click();
+
+  const handleToggleStatus = async (id: string, currentStatus: string) => {
+    try {
+      const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+      await api.put(`/users/${id}`, { status: newStatus });
+      toast.success(`User ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully.`);
+      const fetchedResponse = await api.get('/users');
+      const fetched = fetchedResponse as any;
+      if (fetched.success) setUsers(fetched.data);
+    } catch (err: any) {
+      toast.error('Failed to update user status.');
+    }
   };
 
-  const handleDeactivate = (id: string) => {
-    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, status: 'inactive' } : u)));
-    toast.success('User deactivated.');
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this user? This action cannot be undone.")) return;
+    try {
+      await api.delete(`/users/${id}`);
+      toast.success('User deleted successfully.');
+      const fetchedResponse = await api.get('/users');
+      const fetched = fetchedResponse as any;
+      if (fetched.success) setUsers(fetched.data);
+    } catch (err: any) {
+      toast.error('Failed to delete user.');
+    }
   };
 
   const handleExportUsers = () => {
@@ -135,19 +155,7 @@ export default function AdminPage() {
     toast.success('Exported to CSV.');
   };
 
-  const handleBackup = () => {
-    const data = { users, departments: departmentsData, timestamp: new Date().toISOString() };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `rsms-backup-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    toast.success('Database backup downloaded.');
-  };
+
 
   return (
     <div>
@@ -157,8 +165,6 @@ export default function AdminPage() {
         <TabsList className="mb-4">
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="departments">Departments</TabsTrigger>
-          <TabsTrigger value="audit">Audit Logs</TabsTrigger>
-          <TabsTrigger value="system">System</TabsTrigger>
         </TabsList>
 
         <TabsContent value="users">
@@ -166,6 +172,16 @@ export default function AdminPage() {
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-base">User Management</CardTitle>
               <div className="flex gap-2">
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                  <SelectTrigger className="w-36"><SelectValue placeholder="Role" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Users</SelectItem>
+                    <SelectItem value="scholar">Scholars</SelectItem>
+                    <SelectItem value="guide">Guides</SelectItem>
+                    <SelectItem value="chairman">Chairmen</SelectItem>
+                    <SelectItem value="admin">Admins</SelectItem>
+                  </SelectContent>
+                </Select>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input placeholder="Search users..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 w-48" />
@@ -175,8 +191,15 @@ export default function AdminPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
+              {loading ? (
+                <div className="space-y-3 mt-4">
+                  {[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-12 rounded-xl animate-shimmer" />)}
+                </div>
+              ) : filteredUsers.length === 0 ? (
+                <EmptyState icon={Users} title="No users found" description="No users match your search." action={<Button onClick={() => setAddUserOpen(true)}><Plus className="w-4 h-4 mr-2" /> Add User</Button>} />
+              ) : (
+                <Table>
+                  <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
@@ -191,21 +214,31 @@ export default function AdminPage() {
                     <TableRow key={u.id}>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Avatar className="w-8 h-8"><AvatarFallback className="text-xs bg-primary/10 text-primary">{u.name.split(' ').map((n: string) => n[0]).join('')}</AvatarFallback></Avatar>
+                          <Avatar className="w-8 h-8"><AvatarFallback className="text-xs bg-primary/10 text-primary">{(u.name || '').split(' ').map((n: string) => n[0]).join('')}</AvatarFallback></Avatar>
                           <span className="font-medium">{u.name}</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{u.email}</TableCell>
-                      <TableCell><Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600">{u.role}</Badge></TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          <Badge variant="secondary" className="w-fit bg-emerald-500/10 text-emerald-600">{u.role}</Badge>
+                          {(u.role || '').toLowerCase() === 'scholar' && u.guide_name && (
+                            <span className="text-[10px] text-muted-foreground">Guide: {u.guide_name}</span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-muted-foreground">{u.department}</TableCell>
                       <TableCell><Badge variant="outline" className="capitalize">{u.status}</Badge></TableCell>
                       <TableCell>
                         <DropdownMenu>
-                          <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="w-4 h-4" /></Button></DropdownMenuTrigger>
+                          <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label="User actions" className="h-8 w-8"><MoreHorizontal className="w-4 h-4" /></Button></DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => setEditUser(u)}>Edit</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleResetPassword(u)}>Reset Password</DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive" onClick={() => handleDeactivate(u.id)}>Deactivate</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleToggleStatus(u.id, u.status)}>
+                              {u.status === 'active' ? 'Deactivate' : 'Activate'}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(u.id)}>Delete</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -213,14 +246,18 @@ export default function AdminPage() {
                   ))}
                 </TableBody>
               </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="departments">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {departmentsData.map((d, i) => (
-              <AnimatedCard key={d.code} delay={i * 0.05}>
+          {departmentsData.length === 0 ? (
+            <EmptyState icon={Building2} title="No Departments" description="No department statistics are currently available." />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {departmentsData.map((d: any, i: number) => (
+                <AnimatedCard key={d.code} delay={i * 0.05}>
                 <Card className="hover:shadow-md transition-shadow">
                   <CardContent className="p-5">
                     <div className="flex items-start justify-between mb-3">
@@ -241,99 +278,37 @@ export default function AdminPage() {
               </AnimatedCard>
             ))}
           </div>
-        </TabsContent>
-
-        <TabsContent value="audit">
-          <Card>
-            <CardHeader><CardTitle className="text-base">Audit Logs</CardTitle></CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {auditLogs.map((log) => (
-                  <div key={log.id} className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${logTypeColors[log.type]}`}>
-                      <Activity className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-sm"><span className="font-medium">{log.user}</span> <span className="text-muted-foreground">{log.action}</span> <span className="font-medium">{log.target}</span></div>
-                      <div className="text-xs text-muted-foreground mt-0.5">{log.time}</div>
-                    </div>
-                    <Badge variant="outline" className="text-xs capitalize">{log.type}</Badge>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="system">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader><CardTitle className="text-base">Database Management</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-lg border border-border">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center"><Database className="w-5 h-5 text-primary" /></div>
-                    <div><div className="text-sm font-medium">Backup Database</div><div className="text-xs text-muted-foreground">Download a JSON snapshot</div></div>
-                  </div>
-                  <Button variant="outline" size="sm" onClick={handleBackup}><Download className="w-4 h-4 mr-1" /> Backup</Button>
-                </div>
-                <div className="flex items-center justify-between p-3 rounded-lg border border-border">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center"><Upload className="w-5 h-5 text-amber-500" /></div>
-                    <div><div className="text-sm font-medium">Restore Database</div><div className="text-xs text-muted-foreground">From a previous backup</div></div>
-                  </div>
-                  <Button variant="outline" size="sm" onClick={handleRestore}><Upload className="w-4 h-4 mr-1" /> Restore</Button>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader><CardTitle className="text-base">System Status</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                {[
-                  { label: 'API Server', status: 'Operational', color: 'text-emerald-500' },
-                  { label: 'Database', status: 'Operational', color: 'text-emerald-500' },
-                  { label: 'Storage (S3)', status: 'Operational', color: 'text-emerald-500' },
-                  { label: 'Email Service', status: 'Operational', color: 'text-emerald-500' },
-                  { label: 'Notification Service', status: 'Degraded', color: 'text-amber-500' },
-                ].map((s) => (
-                  <div key={s.label} className="flex items-center justify-between p-2.5 rounded-lg border border-border">
-                    <span className="text-sm font-medium">{s.label}</span>
-                    <span className={`text-sm ${s.color} flex items-center gap-1.5`}>
-                      <span className="w-2 h-2 rounded-full bg-current" /> {s.status}
-                    </span>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </div>
+          )}
         </TabsContent>
       </Tabs>
 
-      <AddUserDialog open={addUserOpen} onOpenChange={setAddUserOpen} onSubmit={handleAddUser} />
-      <EditUserDialog user={editUser} onClose={() => setEditUser(null)} onSubmit={handleEditUser} />
+      <AddUserDialog open={addUserOpen} onOpenChange={setAddUserOpen} onSubmit={handleAddUser} guides={availableGuides} />
+      <EditUserDialog user={editUser} onClose={() => setEditUser(null)} onSubmit={handleEditUser} guides={availableGuides} />
     </div>
   );
 }
 
 function AddUserDialog({
-  open, onOpenChange, onSubmit,
+  open, onOpenChange, onSubmit, guides
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  onSubmit: (data: { name: string; email: string; role: string; department: string }) => void;
+  onSubmit: (data: { name: string; email: string; role: string; department: string; guide_id?: string }) => void;
+  guides: ManagedUser[];
 }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('Scholar');
   const [department, setDepartment] = useState('CSE');
+  const [guideId, setGuideId] = useState('unassigned');
 
   const submit = () => {
     if (!name.trim() || !email.trim()) {
       toast.error('Name and email are required.');
       return;
     }
-    onSubmit({ name, email, role, department });
-    setName(''); setEmail(''); setRole('Scholar'); setDepartment('CSE');
+    onSubmit({ name, email, role, department, guide_id: guideId === 'unassigned' ? undefined : guideId });
+    setName(''); setEmail(''); setRole('Scholar'); setDepartment('Computer Science'); setGuideId('unassigned');
   };
 
   return (
@@ -370,15 +345,26 @@ function AddUserDialog({
               <Select value={department} onValueChange={setDepartment}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="CSE">CSE</SelectItem>
-                  <SelectItem value="ECE">ECE</SelectItem>
-                  <SelectItem value="ME">ME</SelectItem>
-                  <SelectItem value="EE">EE</SelectItem>
-                  <SelectItem value="CE">CE</SelectItem>
-                  <SelectItem value="CH">CH</SelectItem>
+                  {DEPARTMENTS.map((dept) => (
+                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
+            {role === 'Scholar' && (
+              <div className="space-y-2 col-span-2">
+                <Label>Assigned Guide</Label>
+                <Select value={guideId} onValueChange={setGuideId}>
+                  <SelectTrigger><SelectValue placeholder="Select a guide" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {guides.map((g) => (
+                      <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </div>
         <DialogFooter>
@@ -390,22 +376,25 @@ function AddUserDialog({
   );
 }
 
-function EditUserDialog({ user, onClose, onSubmit }: {
+function EditUserDialog({ user, onClose, onSubmit, guides }: {
   user: ManagedUser | null;
   onClose: () => void;
-  onSubmit: (data: { name: string; email: string; role: string; department: string }) => void;
+  onSubmit: (data: { name: string; email: string; role: string; department: string; guide_id?: string }) => void;
+  guides: ManagedUser[];
 }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('Scholar');
   const [department, setDepartment] = useState('CSE');
+  const [guideId, setGuideId] = useState('unassigned');
 
   useEffect(() => {
     if (user) {
       setName(user.name);
       setEmail(user.email);
-      setRole(user.role);
+      setRole(user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase());
       setDepartment(user.department);
+      setGuideId(user.guide_id || 'unassigned');
     }
   }, [user]);
 
@@ -413,7 +402,7 @@ function EditUserDialog({ user, onClose, onSubmit }: {
 
   const submit = () => {
     if (!name.trim() || !email.trim()) return;
-    onSubmit({ name, email, role, department });
+    onSubmit({ name, email, role, department, guide_id: guideId === 'unassigned' ? undefined : guideId });
   };
 
   return (
@@ -450,15 +439,26 @@ function EditUserDialog({ user, onClose, onSubmit }: {
               <Select value={department} onValueChange={setDepartment}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="CSE">CSE</SelectItem>
-                  <SelectItem value="ECE">ECE</SelectItem>
-                  <SelectItem value="ME">ME</SelectItem>
-                  <SelectItem value="EE">EE</SelectItem>
-                  <SelectItem value="CE">CE</SelectItem>
-                  <SelectItem value="CH">CH</SelectItem>
+                  {DEPARTMENTS.map((dept) => (
+                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
+            {role.toLowerCase() === 'scholar' && (
+              <div className="space-y-2 col-span-2">
+                <Label>Assigned Guide</Label>
+                <Select value={guideId} onValueChange={setGuideId}>
+                  <SelectTrigger><SelectValue placeholder="Select a guide" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {guides.map((g) => (
+                      <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </div>
         <DialogFooter>

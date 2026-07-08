@@ -2,16 +2,17 @@ import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { statusColors } from '@/lib/navigation';
 
-export function StatusBadge({ status }: { status: string }) {
+export function StatusBadge({ status }: { status?: string }) {
+  const safeStatus = typeof status === 'string' && status.trim() !== '' ? status : 'unknown';
   return (
     <span
       className={cn(
         'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize',
-        statusColors[status] || 'bg-muted text-muted-foreground border-border'
+        statusColors[safeStatus] || 'bg-muted text-muted-foreground border-border'
       )}
     >
       <span className="w-1.5 h-1.5 rounded-full bg-current" />
-      {status.replace('_', ' ')}
+      {safeStatus.replace('_', ' ')}
     </span>
   );
 }

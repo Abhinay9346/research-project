@@ -1,4 +1,5 @@
 const CommitteeMeeting = require('../models/CommitteeMeeting');
+const NotificationService = require('../services/NotificationService');
 const { buildRoleWhereClause } = require('../utils/roleFilter');
 
 exports.getAll = async (req, res, next) => {
@@ -40,6 +41,20 @@ exports.create = async (req, res, next) => {
     }
 
     const data = await CommitteeMeeting.create(req.body);
+
+    // Notify Scholar
+    const scholarId = await NotificationService.getUserIdByName(scholar_name);
+    if (scholarId) {
+      await NotificationService.notify({
+        recipient_user_id: scholarId,
+        title: 'New Committee Meeting Scheduled',
+        message: `A committee meeting "${title}" has been scheduled for ${meeting_date}.`,
+        type: 'info',
+        module: 'committee_meetings',
+        record_id: data.insertId || data.id
+      });
+    }
+
     res.status(201).json({ success: true, message: 'Record created successfully', data });
   } catch (error) {
     next(error);
@@ -56,6 +71,25 @@ exports.update = async (req, res, next) => {
     }
 
     const data = await CommitteeMeeting.update(id, req.body);
+
+    // Notify Scholar on status change
+    if (req.body.status) {
+      const meeting = await CommitteeMeeting.findById(id);
+      if (meeting) {
+        const scholarId = await NotificationService.getUserIdByName(meeting.scholar_name);
+        if (scholarId) {
+          await NotificationService.notify({
+            recipient_user_id: scholarId,
+            title: 'Committee Meeting Updated',
+            message: `Your committee meeting "${meeting.title}" was marked as ${req.body.status}.`,
+            type: req.body.status === 'completed' ? 'success' : 'info',
+            module: 'committee_meetings',
+            record_id: id
+          });
+        }
+      }
+    }
+
     res.status(200).json({ success: true, message: 'Record updated successfully', data });
   } catch (error) {
     if (error.message.includes('not found')) {

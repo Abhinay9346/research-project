@@ -1,4 +1,5 @@
 const Announcement = require('../models/Announcement');
+const NotificationService = require('../services/NotificationService');
 
 exports.getAll = async (req, res, next) => {
   try {
@@ -38,6 +39,19 @@ exports.create = async (req, res, next) => {
     }
 
     const data = await Announcement.create(req.body);
+
+    const allUserIds = await NotificationService.getAllUserIds();
+    if (allUserIds.length > 0) {
+      await NotificationService.notifyMultiple({
+        recipient_user_ids: allUserIds,
+        title: 'New Announcement',
+        message: `${author} posted a new announcement: ${title}`,
+        type: 'info',
+        module: 'announcements',
+        record_id: data.insertId || data.id
+      });
+    }
+
     res.status(201).json({ success: true, message: 'Record created successfully', data });
   } catch (error) {
     next(error);

@@ -19,6 +19,9 @@ api.interceptors.request.use(
         if (user.role) config.headers['X-User-Role'] = user.role;
         if (user.scholarId) config.headers['X-Scholar-Id'] = user.scholarId;
         if (user.guideName) config.headers['X-Guide-Name'] = user.guideName;
+        if (user.guideId) config.headers['X-Guide-Id'] = user.guideId;
+        if (user.name) config.headers['X-User-Name'] = user.name;
+        if (user.id) config.headers['X-User-Id'] = user.id;
       } catch (e) {
         // ignore JSON parse error
       }

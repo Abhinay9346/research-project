@@ -247,6 +247,8 @@ export function useUsers() {
           email: r.email,
           role: r.role,
           department: r.department,
+          guide_id: r.guide_id,
+          guide_name: r.guide_name,
           status: 'active',
         })));
       }
@@ -275,10 +277,12 @@ export function useScholars() {
           name: r.full_name,
           email: r.email,
           department: r.department,
+          guideId: r.guide_id,
           guideName: r.guide_name,
           researchArea: r.research_domain,
-          registrationDate: r.created_at || '2023-01-01',
-          progress: 50,
+          admissionYear: r.admission_year || undefined,
+          registrationDate: r.created_at || new Date().toISOString(),
+          progress: r.progress_percentage || 0,
           status: 'active'
         })));
       }

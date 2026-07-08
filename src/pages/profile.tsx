@@ -15,16 +15,26 @@ import { toast } from 'sonner';
 
 export default function ProfilePage() {
   const { user } = useAuth();
+  const { scholars } = useScholars();
   const [avatarSeed, setAvatarSeed] = useState(0);
 
   if (!user) return null;
 
-  const { scholars } = useScholars();
-  // Find the scholar record matching the logged-in user (by email), fall back to first scholar
-  const scholar = scholars.find((s) => s.email === user.email) || scholars[0] || {} as any;
+  // Find the scholar record matching the logged-in user (by email), fall back to a safe placeholder
+  const scholar = scholars.find((s) => s.email === user.email) || {
+    status: 'unknown',
+    name: user.name,
+    email: user.email,
+    department: user.department || '',
+    progress: 0,
+    publicationsCount: 0,
+    weeklyLogsCount: 0,
+    milestones: [],
+    achievements: []
+  } as any;
   const isScholar = user.role === 'scholar';
-  const displayName = user.name;
-  const initials = displayName.split(' ').map((n) => n[0]).join('').slice(0, 2);
+  const displayName = user.name || '';
+  const initials = displayName?.split(' ').map((n) => n[0]).join('').slice(0, 2) || 'U';
 
   const handleUploadPhoto = () => {
     const input = document.createElement('input');

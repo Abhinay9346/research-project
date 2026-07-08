@@ -15,6 +15,22 @@ import AdminPage from '@/pages/admin';
 import ProfilePage from '@/pages/profile';
 import SettingsPage from '@/pages/settings';
 import ScholarMonitoringPage from '@/pages/scholar-monitoring';
+import { navItems } from '@/lib/navigation';
+import { useLocation } from 'react-router-dom';
+
+function RoleProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const location = useLocation();
+  
+  if (!user) return <Navigate to="/" replace />;
+  
+  const currentNav = navItems.find(n => n.path === location.pathname);
+  if (currentNav && !currentNav.roles.includes(user.role)) {
+    return <Navigate to="/" replace />;
+  }
+  
+  return <>{children}</>;
+}
 
 function ProtectedApp() {
   const { user, isLoading } = useAuth();
@@ -35,17 +51,17 @@ function ProtectedApp() {
   return (
     <AppShell>
       <Routes>
-        <Route path="/" element={<DashboardPage />} />
-        <Route path="/weekly-logs" element={<WeeklyLogsPage />} />
-        <Route path="/publications" element={<PublicationsPage />} />
-        <Route path="/scholars" element={<ScholarsPage />} />
-        <Route path="/committee" element={<CommitteePage />} />
-        <Route path="/analytics" element={<AnalyticsPage />} />
-        <Route path="/announcements" element={<AnnouncementsPage />} />
-        <Route path="/admin" element={<AdminPage />} />
-        <Route path="/scholar-monitoring" element={<ScholarMonitoringPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/" element={<RoleProtectedRoute><DashboardPage /></RoleProtectedRoute>} />
+        <Route path="/weekly-logs" element={<RoleProtectedRoute><WeeklyLogsPage /></RoleProtectedRoute>} />
+        <Route path="/publications" element={<RoleProtectedRoute><PublicationsPage /></RoleProtectedRoute>} />
+        <Route path="/scholars" element={<RoleProtectedRoute><ScholarsPage /></RoleProtectedRoute>} />
+        <Route path="/committee" element={<RoleProtectedRoute><CommitteePage /></RoleProtectedRoute>} />
+        <Route path="/analytics" element={<RoleProtectedRoute><AnalyticsPage /></RoleProtectedRoute>} />
+        <Route path="/announcements" element={<RoleProtectedRoute><AnnouncementsPage /></RoleProtectedRoute>} />
+        <Route path="/admin" element={<RoleProtectedRoute><AdminPage /></RoleProtectedRoute>} />
+        <Route path="/scholar-monitoring" element={<RoleProtectedRoute><ScholarMonitoringPage /></RoleProtectedRoute>} />
+        <Route path="/profile" element={<RoleProtectedRoute><ProfilePage /></RoleProtectedRoute>} />
+        <Route path="/settings" element={<RoleProtectedRoute><SettingsPage /></RoleProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AppShell>
